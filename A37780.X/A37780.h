@@ -135,129 +135,253 @@ typedef struct {
   Hardware Module Resource Usage
 
   CAN1 - Can module
-  CAN2 - Reserved in case we need CAN 2
 
   Timer1 - Used by ETMTick
 
-  Timer4 - Used to time CAN transmits - This is configured by ETM CAN module
-  Timer5 - Used as timeoeout on status update receives - This is configured by ETM CAN module
+  Timer2 - USED FOR TIMING TRIGGER DELAYS (Output Compare Module) and IC Module
+  Timer3 - Reserved for IC Module (IF NEEDED)
 
-  Timer2 - Unused at this time
+  Timer4 - Setting aside for PRF Limit
+  Timer5 - Unused at this time (Previously reserved for Can Module)
 
-  UART1 - Reserved for TCU Communication - Used for Bidirection Watchdog Function
-  UART2 - Reserved for Serial GUI
 
+  UART1 - Reserved for Future Usage
+  UART2 - Serial Dose
+
+  INT1 - Trigger Input
+  INT2 - Trigger 2 Input
+  INT3 - Ethernet Chip Interrupt (not used)
+  INT4 - Customer I/O Interupt (if needed)
+  
+  SPI1 - Ethernet Chip
+  SPI2 - EEPROM and I/O Expander
+
+  I2C  - Not used/enabled
+  
+  IC1 - Trigger Input
+  IC3 - Fan Tac Sensor
+  IC5 - Arc Detect 2
+  IC6 - Arc Detect 1
+
+  Analog Module
+  AN8 - Off Time Analog
+
+  Trigger Modules
+  OC1 - Grid Trigger
+  OC2 - PFN Trigger
+  OC3 - HVPS Inhibit
+  OC4 - Magnetron Current Sample
+  OC5 - AFC Sample
+  OC6 - Target Current Sample
+  OC7 - Spare Trigger
+  OC8 - Balanced Output 1
 
  */
 
 
-
-
-
-
-
-
-
 // ----------------- IO PIN CONFIGURATION -------------------- //
 /*
-  All unused pins will be set to outputs and logic zero
-  LAT values default to 0 at startup so they do not need to be manually set
+  ALL Pins to be left as inputs unless specificly needed as outputs
 */
 
 
+// ----------------- DIGITAL OUTPUT PINS --------------- //
+/*
+
+  RA6  - LED Operation
+  RA7  - PIC LAMP OUT SPARE 1
+  RA9  - PIC DIGITAL OUT 6
+  RA10 - PIC DIGITAL OUT 5
+
+  RB6  - PIC DIGITAL OUT 2  
+  RB7  - PIC DIGITAL OUT 1
+  RB9  - PIC DIGITAL OUT 4
+  RB10 - PIC DIGITAL OUT 3
+  RB11 - PIC DIGITAL OUT 8
+  RB12 - PIC DIGITAL OUT 7
+  RB13 - PIC DIGITAL OUT 9
+  RB14 - DELAY PGM CLK
+  RB15 - DELAY PGM DO
+
+  RC13 - HV Contactor Enable
+  RC14 - AC Contactor Enable
+  RC15 - LED GRN TEST POINT B
+
+  RD11 - Gun Contactor Enable
+  RD14 - GRID STOP PROG EN
+  RD15 - GRID START PROG EN
+
+
+  RG0  - LED Red Test Point A
+  RG2  - UART 1 RX SOURCE SELECT
+  RG9  - BALANCED OUT 2
+  RG12 - PIC EXT 24V ENABLE
+  RG13 - PIC LAMP OUT SPARE 2
+  RG14 - PIC LAMP OUT X-RAY ON
+*/
 
 // ----------------- DIGITAL INPUT PINS --------------- //
 /*
-  RA9  (Accidentally left grounded)
-  RG0  (Unused Can Pin)
-  RG1  (Unused Can Pin)
-  RG14 (Reset Detect)
-  RB14 (Analog Input)
-  RB15 (Analog Input)
+  RG15 - PIC INPUT 1
+  RC1  - PIN INPUT 2
+  RB5  - PIN INPUT 3
+  RB4  - PIN INPUT 4
+  RB3  - PIN INPUT 6
+  RB2  - PIN INPUT 7
+
+  RA12 - TRIGGER 1
+  RD12 - TRIGGER 1
+  RA15 - PIN INPUT 5 / INT 4
+
+  RG1  - HV ON CMD
   
-  Pins that are overidden by a hardware module and should be left as inputs during port configuration
-  RB0 PROGRAM
-  RB1 PROGRAM
+  RD10 - PIC FAN SENSOR
+  RD9  - SPARE READY 1
 
-  RF0 CAN 1
-  RF1 CAN 1
-  RF2 UART 1
-  RF3 UART 1
-  RF4 UART 2
-  RF5 UART 2
-  RF6 SPI 1
-  RF7 SPI 1
-  RF8 SPI 1
-
-  RG2 I2C
-  RG3 I2C
-
-  Pins that are configured by other software modules and should be left as inputs during port configuration
-  RA14 (Ethernet Module Interrupt Input)
-  RA15 (Ethernet Module Reset Output)
-  RD14 (Ethernet Module Clock Input)
-  RD15 (Ethernet Module CS Output)
+  
   
 
 */
 
-#define A36507_TRISA_VALUE 0b1100001000000000 
-#define A36507_TRISB_VALUE 0b0110000000000011 
-#define A36507_TRISC_VALUE 0b0000000000000000 
-#define A36507_TRISD_VALUE 0b1100000000000000 
-#define A36507_TRISF_VALUE 0b0000000111111111 
-#define A36507_TRISG_VALUE 0b0100000000001111
+
+#define A37780_TRISA_VALUE 0b1111100100111111
+#define A37780_TRISB_VALUE 0b0000000100111111
+#define A37780_TRISC_VALUE 0b0001111111111111
+#define A37780_TRISD_VALUE 0b0011011111111111
+#define A37780_TRISF_VALUE 0b1111111111111111
+#define A37780_TRISG_VALUE 0b1000110111111010
 
 
-#define PIN_OUT_ETM_UART_1_DE                 _LATD7
-#define PIN_OUT_ETM_UART_2_DE                 _LATD6
-#define OLL_UART_TX_DRIVER_ENABLE             1
 
-#define PIN_IN_ETM_RESET_DETECT               _RG14
-#define PIN_OUT_ETM_RESET_DETECT              _LATG14
-#define TRIS_PIN_ETM_RESET_RETECT             _TRISG14
+#define PIN_OUT_LED_GRN_OPERATION              _LATA6
+#define PIN_OUT_LED_GRN_TEST_POINT_B           _LATC15
+#define PIN_OUT_LED_RED_TEST_POINT_A           _LATG0
+#define OLL_LED_ON                             0
 
-#define PIN_OUT_ETM_LED_OPERATIONAL_GREEN     _LATA7
-#define PIN_OUT_ETM_LED_TEST_POINT_A_RED      _LATG12
-#define PIN_OUT_ETM_LED_TEST_POINT_B_GREEN    _LATG13
-#define OLL_LED_ON                            0
 
-#define PIN_OUT_TP_13                         _LATC15
-#define PIN_OUT_TP_14                         _LATB7
-#define PIN_OUT_TP_15                         _LATB8
-#define PIN_OUT_TP_16                         _LATB9
+#define PIN_OUT_UART_1_RX_SOURCE_SELECT        _LATG2
+#define PIN_OUT_BALANCED_OUT_2                 _LATG9
+#define PIN_OUT_PIC_EXT_24V_ENABLE             _LATG12
+#define PIN_OUT_PIC_LAMP_OUT_SPARE_1           _LATA7
+#define PIN_OUT_PIC_LAMP_OUT_SPARE_2           _LATG13
+#define PIN_OUT_PIC_LAMP_OUT_X_RAY_ON          _LATG14
+
+
+#define PIN_OUT_PIC_DIGITAL_OUT_1              _LATB7
+#define PIN_OUT_PIC_DIGITAL_OUT_2              _LATB6
+#define PIN_OUT_PIC_DIGITAL_OUT_3              _LATB10
+#define PIN_OUT_PIC_DIGITAL_OUT_4              _LATB9
+#define PIN_OUT_PIC_DIGITAL_OUT_5              _LATA10
+#define PIN_OUT_PIC_DIGITAL_OUT_6              _LATA9
+#define PIN_OUT_PIC_DIGITAL_OUT_7              _LATB12
+#define PIN_OUT_PIC_DIGITAL_OUT_8              _LATB11
+#define PIN_OUT_PIC_DIGITAL_OUT_9              _LATB13
+
+#define PIN_OUT_DELAY_PGM_CLK                  _LATB14
+#define PIN_OUT_DELAY_PGM_DO                   _LATB15
+#define PIN_OUT_GRID_STOP_PROG_EN              _LATD14
+#define PIN_OUT_GRID_START_PROG_EN             _LATD15
+
+#define PIN_OUT_HV_CONTACTOR_ENABLE            _LATC13
+#define PIN_OUT_AC_CONTACTOR_ENABLE            _LATC14
+#define PIN_OUT_GUN_CONTACTOR_ENABLE           _LATD11
+
+
+#define PIN_IN_PIC_INPUT_1                     _RG15
+#define PIN_IN_PIC_INPUT_2                     _RC1
+#define PIN_IN_PIC_INPUT_3                     _RB5
+#define PIN_IN_PIC_INPUT_4                     _RB4
+#define PIN_IN_PIC_INPUT_5                     _RA15
+#define PIN_IN_PIC_INPUT_6                     _RB3
+#define PIN_IN_PIC_INPUT_7                     _RB2
+
+#define PIN_IN_HV_ON_CMD                       _RG1
+#define PIN_IN_PIC_FAN_SENSOR                  _RD10
+#define PIN_IN_SPARE_READY_1                   _RD9
+#define PIN_IN_TRIGGER_1                       _RA12
+
+
+
+#define OLL_FRONT_PANEL_LIGHT_ON               0
+#define OLL_FRONT_PANEL_LIGHT_OFF              1
+#define FRONT_PANEL_AC_POWER                   PIN_OUT_PIC_LAMP_OUT_SPARE_1
+#define FRONT_PANEL_BEAM_ENABLE                PIN_OUT_PIC_LAMP_OUT_SPARE_2
+#define FRONT_PANEL_X_RAY_ON                   PIN_OUT_PIC_LAMP_OUT_X_RAY_ON
+
+#define OLL_KEYLOCK_PANEL_SWITCH_POWER_DISABLED 1
+#define OLL_KEYLOCK_PANEL_SWITCH_POWER_ENABLED  0
+#define KEYLOCK_PANEL_SWITCH_EN                PIN_OUT_PIC_EXT_24V_ENABLE
+
+#define OLL_DISCRETE_OUTPUT_LOW                1
+#define OLL_DISCRETE_OUTPUT_HIGH               0
+#define DISCRETE_OUTPUT_FAULT                  PIN_OUT_PIC_DIGITAL_OUT_5
+#define DISCRETE_OUTPUT_POWER_ON               PIN_OUT_PIC_DIGITAL_OUT_7
+#define DISCRETE_OUTPUT_WARMUP                 PIN_OUT_PIC_DIGITAL_OUT_9
+#define DISCRETE_OUTPUT_STANDBY                PIN_OUT_PIC_DIGITAL_OUT_3
+#define DISCRETE_OUTPUT_READY                  PIN_OUT_PIC_DIGITAL_OUT_2
+#define DISCRETE_OUTPUT_X_RAY_ON               PIN_OUT_PIC_DIGITAL_OUT_6
+#define DISCRETE_OUTPUT_SPARE                  0
+
+
+#define DISCRETE_INPUT_SYSTEM_ENABLE           PIN_IN_PIC_INPUT_1
+#define ILL_SYSTEM_ENABLE                      0
+
+#define BEAM_ENABLE_INPUT                      PIN_IN_HV_ON_CMD
+#define ILL_BEAM_ENABLE                        0
+#define ILL_BEAM_DISABLED                      1
+
+#define PIN_TRIGGER_IN                         PIN_IN_TRIGGER_1
+#define ILL_TRIGGER_ACTIVE                     1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#define CONTACTOR_OPEN                         0
+#define CONTACTOR_CLOSED                       1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 // --------------- CONFIGURE TMR2 MODULE ----------------------- //
-#define T2CON_VALUE                    (T2_ON & T2_IDLE_CON & T2_GATE_OFF & T2_PS_1_8 & T2_32BIT_MODE_OFF & T2_SOURCE_INT)
-#define PR2_PERIOD_US                  10000   // 10mS
-#define PR2_VALUE_10_MILLISECONDS      ((FCY_CLK/1000000)*PR2_PERIOD_US/8)
-
+#define T2CON_VALUE                    (T2_ON & T2_IDLE_CON & T2_GATE_OFF & T2_PS_1_1 & T2_32BIT_MODE_OFF & T2_SOURCE_INT)
 
 
 // ------------------------ CONFIGURE ADC MODULE ------------------- //
 #define ADCON1_SETTING          (ADC_MODULE_OFF & ADC_IDLE_STOP & ADC_FORMAT_INTG & ADC_CLK_AUTO & ADC_AUTO_SAMPLING_ON)
-#define ADCON2_SETTING          (ADC_VREF_AVDD_EXT & ADC_SCAN_ON & ADC_SAMPLES_PER_INT_16 & ADC_ALT_BUF_OFF & ADC_ALT_INPUT_OFF)
+#define ADCON2_SETTING          (ADC_VREF_AVDD_AVSS & ADC_SCAN_OFF & ADC_SAMPLES_PER_INT_16 & ADC_ALT_BUF_OFF & ADC_ALT_INPUT_OFF)
 #define ADCON3_SETTING          (ADC_SAMPLE_TIME_31 & ADC_CONV_CLK_SYSTEM & ADC_CONV_CLK_10Tcy)
-
-#define ADPCFG_SETTING          (ENABLE_AN13_ANA & ENABLE_AN14_ANA)
-#define ADCSSL_SETTING          (SKIP_SCAN_AN0 & SKIP_SCAN_AN1 & SKIP_SCAN_AN2 & SKIP_SCAN_AN3 & SKIP_SCAN_AN4 & SKIP_SCAN_AN5 & SKIP_SCAN_AN6 &  SKIP_SCAN_AN7 & SKIP_SCAN_AN8 & SKIP_SCAN_AN9 & SKIP_SCAN_AN10 & SKIP_SCAN_AN11 & SKIP_SCAN_AN12 & SKIP_SCAN_AN15)
-
-#define ADCHS_SETTING           (ADC_CH0_POS_SAMPLEA_AN13 & ADC_CH0_NEG_SAMPLEA_VREFN & ADC_CH0_POS_SAMPLEB_AN14 & ADC_CH0_NEG_SAMPLEB_VREFN)
-
-
-
-
-
-
-
-
-// ---------------------- FAULTS/WARNINGS ------------------------ //
-#define FAULT_A36507_CAN_TIMEOUT              0b0000 0000 0000 0001
-#define FAULT_A36507_CAN_ETHERNET_TIMEOUT     0b0000 0000 0000 0010
-//#define FAULT_A36507_     
-
-
+#define ADPCFG_SETTING          (ENABLE_AN8_ANA)
+#define ADCSSL_SETTING          0x0000
+#define ADCHS_SETTING           (ADC_CH0_POS_SAMPLEA_AN8 & ADC_CH0_NEG_SAMPLEA_VREFN & ADC_CH0_POS_SAMPLEB_AN8 & ADC_CH0_NEG_SAMPLEB_VREFN)
 
 
 typedef struct {
@@ -337,24 +461,43 @@ typedef struct {
 
   unsigned int eeprom_write_status;
 
+
+  unsigned int shutdown_counter;
+
+  unsigned int dose_level;
+
+  unsigned int single_dual_energy_mode_selection;
   
 } A36507GlobalVars;
 
+
+typedef struct {
+  unsigned int trigger_period_too_short_count;
+  unsigned int trigger_width_too_short_count;
+  unsigned int external_trigger_when_internal_selected_count;
+} FAULTVars;
+
+
 #define ECB_COUNTER_AND_TIMERS_RAM_POINTER (((unsigned int*)(&global_data_A36507.pulse_counter_48_bit)) + 1)
-
-
-/*
-//#define thyratron_warmup_counter_seconds                     local_data_ecb.log_data[4]
-//#define magnetron_heater_warmup_counter_seconds              local_data_ecb.log_data[5]
-//#define gun_driver_heater_warmup_counter_seconds             local_data_ecb.log_data[6]
-#define system_powered_seconds                               (*(unsigned long*)&local_data_ecb.log_data[8])
-#define system_hv_on_seconds                                 (*(unsigned long*)&local_data_ecb.log_data[10])
-#define system_xray_on_seconds                               (*(unsigned long*)&local_data_ecb.log_data[12])
-
-#define personality_select_from_pulse_sync                   local_data_ecb.log_data[15]
-
-*/
 #define average_output_power_watts                           local_data_ecb.log_data[14]
+
+
+
+#define TRIGGER_GRID_TRIGGER             1
+#define TRIGGER_PFN_TRIGGER              2
+#define TRIGGER_HVPS_INHIBIT             3
+#define TRIGGER_MAGNETRON_I_SAMP         4
+#define TRIGGER_AFC_SAMPLE               5
+#define TRIGGER_TARGET_I_SAMP            6
+#define TRIGGER_SPARE                    7
+#define TRIGGER_BALANCED_OUT_1           8
+
+#define DOSE_LEVEL_CARGO_HIGH            0b11
+#define DOSE_LEVEL_CARGO_LOW             0b10
+#define DOSE_LEVEL_CAB_HIGH              0b01
+#define DOSE_LEVEL_CAB_LOW               0b00
+
+
 
 
 extern A36507GlobalVars global_data_A36507;
@@ -411,8 +554,9 @@ extern A36507GlobalVars global_data_A36507;
 
 
 #define STATE_STARTUP                                0x10
-#define STATE_WAIT_FOR_PERSONALITY_FROM_PULSE_SYNC   0x12
-#define STATE_WAITING_FOR_INITIALIZATION             0x15
+#define STATE_SAFETY_SELF_TEST                       0x12
+#define STATE_WAITING_FOR_POWER_ON                   0x16 
+#define STATE_WAITING_FOR_INITIALIZATION             0x18
 #define STATE_WARMUP                                 0x20
 #define STATE_STANDBY                                0x30
 #define STATE_DRIVE_UP                               0x40
@@ -420,15 +564,11 @@ extern A36507GlobalVars global_data_A36507;
 #define STATE_XRAY_ON                                0x60
 
 
-#define STATE_FAULT_HOLD                             0x80
-#define STATE_FAULT_RESET_HOLD                       0x86
-#define STATE_FAULT_LATCH_DECISION                   0x8A
-//#define STATE_FAULT_RESET                            0x90
-#define STATE_FAULT_SYSTEM                           0xA0
-#define STATE_FAULT_WARMUP                           0xB0
-#define STATE_FAULT_STANDBY                          0xC0
-
-
+#define STATE_FAULT_WARMUP                           0xA0
+#define STATE_FAULT_SYSTEM                           0xA2
+#define STATE_FAULT_HOLD                             0xA4
+#define STATE_FAULT_RESET                            0xA6
+#define STATE_SAFE_POWER_DOWN                        0xA8
 
 
 

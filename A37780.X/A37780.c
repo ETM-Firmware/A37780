@@ -6,6 +6,9 @@
 #include "ETM_TICK.h"
 
 
+unsigned int mode_select_internal_trigger;  // DPARKER create structure for run time configuration parameters
+
+
 #define EEPROM_PAGE_ECB_COUNTER_AND_TIMERS           0x00
 #define EEPROM_PAGE_ECB_BOARD_CONFIGURATION          0x7E
 #define EEPROM_PAGE_ECB_DOSE_SETTING_0               0x40
@@ -35,11 +38,7 @@
 #define ACCESS_MODE_SERVICE_PW_FIXED  0xF1A7
 #define ACCESS_MODE_ETM_PW_FIXED      0x117F
 
-#define WATCHDOG_TIMEOUT_MILLISEC             65
-unsigned long watchdog_timeout_holding_var;
 unsigned long ten_millisecond_holding_var;
-
-unsigned int watchdog_test_counter;  //DPARKER REMOVE THIS
 
 //TYPE_PUBLIC_ANALOG_INPUT analog_3_3V_vmon;
 TYPE_PUBLIC_ANALOG_INPUT analog_5V_vmon;
@@ -63,16 +62,14 @@ unsigned int test_ref_det_good_message;
 
 
 
-void SendWatchdogResponse(unsigned int pulse_count);
-unsigned int LookForWatchdogMessage(void);
-void TestSendWatchdogMessage(void);
-
-
 void CopyCurrentConfig(unsigned int destination);
 void LoadConfig(unsigned int source);
 
 #define USE_FACTORY_DEFAULTS 0
 #define USE_CUSTOMER_BACKUP  1
+
+
+
 
 
 
@@ -153,6 +150,26 @@ void UpdateHeaterScale(void);
 */
 
 
+void SetACContactor(unsigned int contactor_state);
+void SetHVContactor(unsigned int contactor_state);
+void SetGUNContactor(unsigned int contactor_state);
+void DisableTriggers(void);
+void EnableTriggers(void);
+unsigned int CheckXRayOn(void);
+void SetDoseLevelTiming(void);
+void SetTriggerTiming(unsigned int trigger_type, unsigned int start_time, unsigned int stop_time);
+
+
+
+void SetACContactor(unsigned int contactor_state) {}
+void SetHVContactor(unsigned int contactor_state) {}
+void SetGUNContactor(unsigned int contactor_state) {}
+void DisableTriggers(void) {}
+void EnableTriggers(void) {}
+unsigned int CheckXRayOn(void) {
+  return 0;
+}
+
 
 
 // -------------------- STARTUP Helper Functions ---------------------- //
@@ -204,6 +221,9 @@ A36507GlobalVars global_data_A36507;
 */
 
 
+FAULTVars fault_data;
+
+
 // -------------------- Local Structures ----------------------------- //
 RTC_DS3231 U6_DS3231;                        
 /* 
@@ -228,43 +248,133 @@ void DoStateMachine(void) {
   
   switch (global_data_A36507.control_state) {
 
-    
   case STATE_STARTUP:
+    SendToEventLog(LOG_ID_ENTERED_STATE_STARTUP);
+    _SYNC_CONTROL_RESET_ENABLE = 1;
+    _SYNC_CONTROL_SYSTEM_HV_DISABLE = 1;
+    FRONT_PANEL_AC_POWER       = OLL_FRONT_PANEL_LIGHT_OFF;
+    FRONT_PANEL_BEAM_ENABLE    = OLL_FRONT_PANEL_LIGHT_OFF;
+    FRONT_PANEL_X_RAY_ON       = OLL_FRONT_PANEL_LIGHT_OFF;
+    KEYLOCK_PANEL_SWITCH_EN    = OLL_KEYLOCK_PANEL_SWITCH_POWER_DISABLED;
+    DISCRETE_OUTPUT_FAULT      = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_POWER_ON   = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_WARMUP     = OLL_DISCRETE_OUTPUT_LOW;      
+    DISCRETE_OUTPUT_STANDBY    = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_READY      = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_X_RAY_ON   = OLL_DISCRETE_OUTPUT_LOW;
+    SetACContactor(CONTACTOR_OPEN);
+    SetHVContactor(CONTACTOR_OPEN);
+    SetGUNContactor(CONTACTOR_OPEN);
+    DisableTriggers();
     InitializeA36507();
     global_data_A36507.gun_heater_holdoff_timer = 0;
     _SYNC_CONTROL_GUN_DRIVER_DISABLE_HTR = 1;
-    global_data_A36507.control_state = STATE_WAITING_FOR_INITIALIZATION;
+    global_data_A36507.control_state = STATE_SAFETY_SELF_TEST;
     SendToEventLog(LOG_ID_ENTERED_STATE_STARTUP);
     if (_STATUS_LAST_RESET_WAS_POWER_CYCLE) {
       _SYNC_CONTROL_CLEAR_DEBUG_DATA = 1;
     }
     break;
 
+
+  case STATE_SAFETY_SELF_TEST:
+    SendToEventLog(LOG_ID_ENTERED_STATE_SAFETY_SELF_TEST);
+    _SYNC_CONTROL_RESET_ENABLE = 1;
+    _SYNC_CONTROL_SYSTEM_HV_DISABLE = 1;
+    FRONT_PANEL_AC_POWER       = OLL_FRONT_PANEL_LIGHT_ON;
+    FRONT_PANEL_BEAM_ENABLE    = OLL_FRONT_PANEL_LIGHT_OFF;
+    FRONT_PANEL_X_RAY_ON       = OLL_FRONT_PANEL_LIGHT_OFF;
+    KEYLOCK_PANEL_SWITCH_EN    = OLL_KEYLOCK_PANEL_SWITCH_POWER_DISABLED;
+    DISCRETE_OUTPUT_FAULT      = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_POWER_ON   = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_WARMUP     = OLL_DISCRETE_OUTPUT_LOW;      
+    DISCRETE_OUTPUT_STANDBY    = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_READY      = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_X_RAY_ON   = OLL_DISCRETE_OUTPUT_LOW;
+    SetACContactor(CONTACTOR_OPEN);
+    SetHVContactor(CONTACTOR_OPEN);
+    SetGUNContactor(CONTACTOR_OPEN);
+    DisableTriggers();
+    while (global_data_A36507.control_state == STATE_SAFETY_SELF_TEST) {
+      /*
+	DPARKER - What to test here
+	
+	Certainly want to look at the Keylock and the Panel Switch
+	Do we test the E-STOP here or somewhere else?
+	I think the E-STOP needs to be tested every time an AC Contactor turns on
+	to verify it's state and all of the contact outputs make sense
+      */
+
+      global_data_A36507.control_state = STATE_WAITING_FOR_POWER_ON;
+    }
+    break;
+    
+    
+  case STATE_WAITING_FOR_POWER_ON:
+    SendToEventLog(LOG_ID_ENTERED_STATE_WAITING_FOR_POWER_ON);
+    _SYNC_CONTROL_RESET_ENABLE = 1;
+    _SYNC_CONTROL_SYSTEM_HV_DISABLE = 1;
+    FRONT_PANEL_AC_POWER       = OLL_FRONT_PANEL_LIGHT_ON;
+    FRONT_PANEL_BEAM_ENABLE    = OLL_FRONT_PANEL_LIGHT_OFF;
+    FRONT_PANEL_X_RAY_ON       = OLL_FRONT_PANEL_LIGHT_OFF;
+    DISCRETE_OUTPUT_FAULT      = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_POWER_ON   = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_WARMUP     = OLL_DISCRETE_OUTPUT_LOW;      
+    DISCRETE_OUTPUT_STANDBY    = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_READY      = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_X_RAY_ON   = OLL_DISCRETE_OUTPUT_LOW;
+    SetACContactor(CONTACTOR_OPEN);
+    SetHVContactor(CONTACTOR_OPEN);
+    SetGUNContactor(CONTACTOR_OPEN);
+    DisableTriggers();
+    while (global_data_A36507.control_state == STATE_WAITING_FOR_POWER_ON) {
+      DoA36507();
+      FlashLeds();
+      if (DISCRETE_INPUT_SYSTEM_ENABLE == ILL_SYSTEM_ENABLE) {
+	global_data_A36507.control_state = STATE_WAITING_FOR_INITIALIZATION;
+      }
+    }
+    break;
+    
     
   case STATE_WAITING_FOR_INITIALIZATION:
     SendToEventLog(LOG_ID_ENTERED_STATE_WAITING_FOR_INITIALIZATION);
     _SYNC_CONTROL_RESET_ENABLE = 1;
-    _SYNC_CONTROL_PULSE_SYNC_DISABLE_HV = 1;
-    _SYNC_CONTROL_PULSE_SYNC_DISABLE_XRAY = 1;
     _SYNC_CONTROL_SYSTEM_HV_DISABLE = 1;
-    _SYNC_CONTROL_PULSE_SYNC_FAULT_LED = 0;
-    _SYNC_CONTROL_PULSE_SYNC_WARMUP_LED = 1;
-    _SYNC_CONTROL_PULSE_SYNC_STANDBY_LED = 0;
-    _SYNC_CONTROL_PULSE_SYNC_READY_LED = 0;
-    _STATUS_PERSONALITY_LOADED = 1;
-    personality_loaded = 1;
-    if (global_data_A36507.eeprom_failure) {
-      global_data_A36507.control_state = STATE_FAULT_SYSTEM;
-    }
+    FRONT_PANEL_AC_POWER       = OLL_FRONT_PANEL_LIGHT_ON;
+    FRONT_PANEL_BEAM_ENABLE    = OLL_FRONT_PANEL_LIGHT_OFF;
+    FRONT_PANEL_X_RAY_ON       = OLL_FRONT_PANEL_LIGHT_OFF;
+    DISCRETE_OUTPUT_FAULT      = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_POWER_ON   = OLL_DISCRETE_OUTPUT_HIGH;
+    DISCRETE_OUTPUT_WARMUP     = OLL_DISCRETE_OUTPUT_LOW;      
+    DISCRETE_OUTPUT_STANDBY    = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_READY      = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_X_RAY_ON   = OLL_DISCRETE_OUTPUT_LOW;
+    SetACContactor(CONTACTOR_CLOSED);
+    SetHVContactor(CONTACTOR_OPEN);
+    SetGUNContactor(CONTACTOR_CLOSED);
+    DisableTriggers();
+    global_data_A36507.startup_counter = 0;
+    // DPARKER ADD THE FRONT PANEL LIGHT CONTROLS
     while (global_data_A36507.control_state == STATE_WAITING_FOR_INITIALIZATION) {
       DoA36507();
       FlashLeds();
+
+      /* 
+	 DPARKER
+	 Add self test fucntionality
+	 Certainly need to test all the fibers.
+	 What else can be tested with High Voltage off????
+      */
+      
       if ((!CheckConfigurationFault()) && (global_data_A36507.startup_counter >= 300)) {
       	global_data_A36507.control_state = STATE_WARMUP;
 	SendToEventLog(LOG_ID_ALL_MODULES_CONFIGURED);
       }
     }
     break;
+
+
     
 
   case STATE_WARMUP:
@@ -272,13 +382,20 @@ void DoStateMachine(void) {
     SendToEventLog(LOG_ID_ENTERED_STATE_WARMUP);
     _SYNC_CONTROL_CLEAR_DEBUG_DATA = 0;
     _SYNC_CONTROL_RESET_ENABLE = 1;
-    _SYNC_CONTROL_PULSE_SYNC_DISABLE_HV = 1;
-    _SYNC_CONTROL_PULSE_SYNC_DISABLE_XRAY = 1;
     _SYNC_CONTROL_SYSTEM_HV_DISABLE = 1;
-    _SYNC_CONTROL_PULSE_SYNC_FAULT_LED = 0;
-    _SYNC_CONTROL_PULSE_SYNC_WARMUP_LED = 1;
-    _SYNC_CONTROL_PULSE_SYNC_STANDBY_LED = 0;
-    _SYNC_CONTROL_PULSE_SYNC_READY_LED = 0;
+    FRONT_PANEL_AC_POWER       = OLL_FRONT_PANEL_LIGHT_ON;
+    FRONT_PANEL_BEAM_ENABLE    = OLL_FRONT_PANEL_LIGHT_OFF;
+    FRONT_PANEL_X_RAY_ON       = OLL_FRONT_PANEL_LIGHT_OFF;
+    DISCRETE_OUTPUT_FAULT      = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_POWER_ON   = OLL_DISCRETE_OUTPUT_HIGH;
+    DISCRETE_OUTPUT_WARMUP     = OLL_DISCRETE_OUTPUT_HIGH;      
+    DISCRETE_OUTPUT_STANDBY    = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_READY      = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_X_RAY_ON   = OLL_DISCRETE_OUTPUT_LOW;
+    SetACContactor(CONTACTOR_CLOSED);
+    SetHVContactor(CONTACTOR_OPEN);
+    SetGUNContactor(CONTACTOR_CLOSED);
+    DisableTriggers();
     while (global_data_A36507.control_state == STATE_WARMUP) {
       DoA36507();
       if (global_data_A36507.warmup_done) {
@@ -296,13 +413,20 @@ void DoStateMachine(void) {
     SendToEventLog(LOG_ID_ENTERED_STATE_FAULT_WARMUP);
     _SYNC_CONTROL_CLEAR_DEBUG_DATA = 0;
     _SYNC_CONTROL_RESET_ENABLE = 1;
-    _SYNC_CONTROL_PULSE_SYNC_DISABLE_HV = 1;
-    _SYNC_CONTROL_PULSE_SYNC_DISABLE_XRAY = 1;
     _SYNC_CONTROL_SYSTEM_HV_DISABLE = 1;
-    _SYNC_CONTROL_PULSE_SYNC_FAULT_LED = 1;
-    _SYNC_CONTROL_PULSE_SYNC_WARMUP_LED = 1;
-    _SYNC_CONTROL_PULSE_SYNC_STANDBY_LED = 0;
-    _SYNC_CONTROL_PULSE_SYNC_READY_LED = 0;
+    FRONT_PANEL_AC_POWER       = OLL_FRONT_PANEL_LIGHT_ON;
+    FRONT_PANEL_BEAM_ENABLE    = OLL_FRONT_PANEL_LIGHT_OFF;
+    FRONT_PANEL_X_RAY_ON       = OLL_FRONT_PANEL_LIGHT_OFF;
+    DISCRETE_OUTPUT_FAULT      = OLL_DISCRETE_OUTPUT_HIGH;
+    DISCRETE_OUTPUT_POWER_ON   = OLL_DISCRETE_OUTPUT_HIGH;
+    DISCRETE_OUTPUT_WARMUP     = OLL_DISCRETE_OUTPUT_HIGH;      
+    DISCRETE_OUTPUT_STANDBY    = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_READY      = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_X_RAY_ON   = OLL_DISCRETE_OUTPUT_LOW;
+    SetACContactor(CONTACTOR_CLOSED);
+    SetHVContactor(CONTACTOR_OPEN);
+    SetGUNContactor(CONTACTOR_CLOSED);
+    DisableTriggers();
     while (global_data_A36507.control_state == STATE_FAULT_WARMUP) {
       DoA36507();
       if (!CheckWarmupFault()) {
@@ -313,63 +437,232 @@ void DoStateMachine(void) {
       }
     }
     break;
-    
-
-  case STATE_FAULT_SYSTEM:
-    SendToEventLog(LOG_ID_ENTERED_STATE_FAULT_SYSTEM);
-    _SYNC_CONTROL_RESET_ENABLE = 0;
-    _SYNC_CONTROL_PULSE_SYNC_DISABLE_HV = 1;
-    _SYNC_CONTROL_PULSE_SYNC_DISABLE_XRAY = 1;
-    _SYNC_CONTROL_SYSTEM_HV_DISABLE = 1;
-    _SYNC_CONTROL_PULSE_SYNC_FAULT_LED = 1;
-    _SYNC_CONTROL_PULSE_SYNC_WARMUP_LED = 0;
-    _SYNC_CONTROL_PULSE_SYNC_STANDBY_LED = 0;
-    _SYNC_CONTROL_PULSE_SYNC_READY_LED = 0;
-    while (1) {
-      DoA36507();
-    }
-    break;
 
     
   case STATE_STANDBY:
     SendToEventLog(LOG_ID_ENTERED_STATE_STANDBY);
-    _SYNC_CONTROL_RESET_ENABLE = 1;
-    _SYNC_CONTROL_PULSE_SYNC_DISABLE_HV = 0;
-    _SYNC_CONTROL_PULSE_SYNC_DISABLE_XRAY = 1;
+    _SYNC_CONTROL_CLEAR_DEBUG_DATA = 0;
+    _SYNC_CONTROL_RESET_ENABLE = 0;
     _SYNC_CONTROL_SYSTEM_HV_DISABLE = 1;
-    _SYNC_CONTROL_PULSE_SYNC_FAULT_LED = 0;
-    _SYNC_CONTROL_PULSE_SYNC_WARMUP_LED = 0;
-    _SYNC_CONTROL_PULSE_SYNC_STANDBY_LED = 1;
-    _SYNC_CONTROL_PULSE_SYNC_READY_LED = 0;
-     while (global_data_A36507.control_state == STATE_STANDBY) {
+    FRONT_PANEL_AC_POWER       = OLL_FRONT_PANEL_LIGHT_ON;
+    FRONT_PANEL_BEAM_ENABLE    = OLL_FRONT_PANEL_LIGHT_OFF;
+    FRONT_PANEL_X_RAY_ON       = OLL_FRONT_PANEL_LIGHT_OFF;
+    DISCRETE_OUTPUT_FAULT      = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_POWER_ON   = OLL_DISCRETE_OUTPUT_HIGH;
+    DISCRETE_OUTPUT_WARMUP     = OLL_DISCRETE_OUTPUT_LOW;      
+    DISCRETE_OUTPUT_STANDBY    = OLL_DISCRETE_OUTPUT_HIGH;
+    DISCRETE_OUTPUT_READY      = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_X_RAY_ON   = OLL_DISCRETE_OUTPUT_LOW;
+    SetACContactor(CONTACTOR_CLOSED);
+    SetHVContactor(CONTACTOR_OPEN);
+    SetGUNContactor(CONTACTOR_CLOSED);
+    DisableTriggers();
+    while (global_data_A36507.control_state == STATE_STANDBY) {
       DoA36507();
-      if (!_PULSE_SYNC_CUSTOMER_HV_OFF) {
+      if (BEAM_ENABLE_INPUT == ILL_BEAM_ENABLE) {
 	global_data_A36507.control_state = STATE_DRIVE_UP;
       }
       if (CheckStandbyFault()) {
-	global_data_A36507.control_state = STATE_FAULT_LATCH_DECISION;
+	global_data_A36507.control_state = STATE_FAULT_RESET;
+      }
+      if (CheckFaultLatching()) {
+	global_data_A36507.control_state = STATE_FAULT_HOLD;
+      }
+    }
+    break;
+    
+
+  case STATE_DRIVE_UP:
+    SendToEventLog(LOG_ID_ENTERED_STATE_DRIVE_UP);
+    _SYNC_CONTROL_CLEAR_DEBUG_DATA = 0;
+    _SYNC_CONTROL_RESET_ENABLE = 0;
+    _SYNC_CONTROL_SYSTEM_HV_DISABLE = 0;
+    FRONT_PANEL_AC_POWER       = OLL_FRONT_PANEL_LIGHT_ON;
+    FRONT_PANEL_BEAM_ENABLE    = OLL_FRONT_PANEL_LIGHT_OFF;
+    FRONT_PANEL_X_RAY_ON       = OLL_FRONT_PANEL_LIGHT_OFF;
+    DISCRETE_OUTPUT_FAULT      = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_POWER_ON   = OLL_DISCRETE_OUTPUT_HIGH;
+    DISCRETE_OUTPUT_WARMUP     = OLL_DISCRETE_OUTPUT_LOW;      
+    DISCRETE_OUTPUT_STANDBY    = OLL_DISCRETE_OUTPUT_HIGH;
+    DISCRETE_OUTPUT_READY      = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_X_RAY_ON   = OLL_DISCRETE_OUTPUT_LOW;
+    SetACContactor(CONTACTOR_CLOSED);
+    SetHVContactor(CONTACTOR_CLOSED);
+    SetGUNContactor(CONTACTOR_CLOSED);
+    DisableTriggers();
+    while (global_data_A36507.control_state == STATE_DRIVE_UP) {
+      DoA36507();
+      if (!CheckHVOnFault()) {
+	global_data_A36507.control_state = STATE_READY;
+      }
+      if (BEAM_ENABLE_INPUT == ILL_BEAM_DISABLED) {
+	global_data_A36507.control_state = STATE_STANDBY;
+      }
+      if (CheckStandbyFault()) {
+	global_data_A36507.drive_up_fault_counter++;
+	global_data_A36507.control_state = STATE_FAULT_RESET;
+      }
+      if (CheckFaultLatching()) {
+	global_data_A36507.control_state = STATE_FAULT_HOLD;
+      }
+     }
+    break;
+    
+
+  case STATE_READY:
+    SendToEventLog(LOG_ID_ENTERED_STATE_READY);
+    _SYNC_CONTROL_CLEAR_DEBUG_DATA = 0;
+    _SYNC_CONTROL_RESET_ENABLE = 0;
+    _SYNC_CONTROL_SYSTEM_HV_DISABLE = 0;
+    FRONT_PANEL_AC_POWER       = OLL_FRONT_PANEL_LIGHT_ON;
+    FRONT_PANEL_BEAM_ENABLE    = OLL_FRONT_PANEL_LIGHT_ON;
+    FRONT_PANEL_X_RAY_ON       = OLL_FRONT_PANEL_LIGHT_OFF;
+    DISCRETE_OUTPUT_FAULT      = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_POWER_ON   = OLL_DISCRETE_OUTPUT_HIGH;
+    DISCRETE_OUTPUT_WARMUP     = OLL_DISCRETE_OUTPUT_LOW;      
+    DISCRETE_OUTPUT_STANDBY    = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_READY      = OLL_DISCRETE_OUTPUT_HIGH;
+    DISCRETE_OUTPUT_X_RAY_ON   = OLL_DISCRETE_OUTPUT_LOW;
+    SetACContactor(CONTACTOR_CLOSED);
+    SetHVContactor(CONTACTOR_CLOSED);
+    SetGUNContactor(CONTACTOR_CLOSED);
+    DisableTriggers();
+    global_data_A36507.drive_up_fault_counter = 0;
+    _STATUS_DRIVE_UP_TIMEOUT = 0;
+     while (global_data_A36507.control_state == STATE_READY) {
+      DoA36507();
+      if (CheckXRayOn() == 1) {
+	global_data_A36507.control_state = STATE_XRAY_ON;
+      }
+      if (BEAM_ENABLE_INPUT == ILL_BEAM_DISABLED) {
+	global_data_A36507.control_state = STATE_DRIVE_UP;
+      }
+      if (CheckHVOnFault()) {
+	global_data_A36507.control_state = STATE_FAULT_RESET;
+	global_data_A36507.high_voltage_on_fault_counter++;
+      }
+      if (CheckFaultLatching()) {
+	global_data_A36507.control_state = STATE_FAULT_HOLD;
       }
      }
     break;
 
 
-  case STATE_FAULT_STANDBY:
-    SendToEventLog(LOG_ID_ENTERED_STATE_FAULT_STANDBY);
-    _SYNC_CONTROL_RESET_ENABLE = 1;
-    _SYNC_CONTROL_PULSE_SYNC_DISABLE_HV = 1;
-    _SYNC_CONTROL_PULSE_SYNC_DISABLE_XRAY = 1;
-    _SYNC_CONTROL_SYSTEM_HV_DISABLE = 1;
-    _SYNC_CONTROL_PULSE_SYNC_FAULT_LED = 1;
-    _SYNC_CONTROL_PULSE_SYNC_WARMUP_LED = 0;
-    _SYNC_CONTROL_PULSE_SYNC_STANDBY_LED = 0;
-    _SYNC_CONTROL_PULSE_SYNC_READY_LED = 0;
-    while (global_data_A36507.control_state == STATE_FAULT_STANDBY) {
+  case STATE_XRAY_ON:
+    SendToEventLog(LOG_ID_ENTERED_STATE_XRAY_ON);
+    _SYNC_CONTROL_CLEAR_DEBUG_DATA = 0;
+    _SYNC_CONTROL_RESET_ENABLE = 0;
+    _SYNC_CONTROL_SYSTEM_HV_DISABLE = 0;
+    FRONT_PANEL_AC_POWER       = OLL_FRONT_PANEL_LIGHT_ON;
+    FRONT_PANEL_BEAM_ENABLE    = OLL_FRONT_PANEL_LIGHT_ON;
+    FRONT_PANEL_X_RAY_ON       = OLL_FRONT_PANEL_LIGHT_ON;
+    DISCRETE_OUTPUT_FAULT      = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_POWER_ON   = OLL_DISCRETE_OUTPUT_HIGH;
+    DISCRETE_OUTPUT_WARMUP     = OLL_DISCRETE_OUTPUT_LOW;      
+    DISCRETE_OUTPUT_STANDBY    = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_READY      = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_X_RAY_ON   = OLL_DISCRETE_OUTPUT_HIGH;
+    SetACContactor(CONTACTOR_CLOSED);
+    SetHVContactor(CONTACTOR_CLOSED);
+    SetGUNContactor(CONTACTOR_CLOSED);
+    EnableTriggers();
+    global_data_A36507.high_voltage_on_fault_counter = 0;
+    while (global_data_A36507.control_state == STATE_XRAY_ON) {
       DoA36507();
-      if (!CheckStandbyFault()) {
-	global_data_A36507.control_state = STATE_STANDBY;
+      if (CheckXRayOn() == 0) {
+	global_data_A36507.control_state = STATE_READY;
       }
-      if (_FAULT_X_RAY_ON_LOGIC_ERROR) {
+      if (BEAM_ENABLE_INPUT == ILL_BEAM_DISABLED) {
+	global_data_A36507.control_state = STATE_READY;
+      }
+      if (CheckHVOnFault()) {
 	global_data_A36507.control_state = STATE_FAULT_HOLD;
+      }
+    }
+    break;
+
+
+  case STATE_FAULT_SYSTEM:
+    SendToEventLog(LOG_ID_ENTERED_STATE_FAULT_SYSTEM);
+    _SYNC_CONTROL_CLEAR_DEBUG_DATA = 0;
+    _SYNC_CONTROL_RESET_ENABLE = 0;
+    _SYNC_CONTROL_SYSTEM_HV_DISABLE = 1;
+    FRONT_PANEL_AC_POWER       = OLL_FRONT_PANEL_LIGHT_ON;
+    FRONT_PANEL_BEAM_ENABLE    = OLL_FRONT_PANEL_LIGHT_OFF;
+    FRONT_PANEL_X_RAY_ON       = OLL_FRONT_PANEL_LIGHT_OFF;
+    DISCRETE_OUTPUT_FAULT      = OLL_DISCRETE_OUTPUT_HIGH;
+    DISCRETE_OUTPUT_POWER_ON   = OLL_DISCRETE_OUTPUT_HIGH;
+    DISCRETE_OUTPUT_WARMUP     = OLL_DISCRETE_OUTPUT_LOW;      
+    DISCRETE_OUTPUT_STANDBY    = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_READY      = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_X_RAY_ON   = OLL_DISCRETE_OUTPUT_LOW;
+    SetACContactor(CONTACTOR_OPEN);
+    SetHVContactor(CONTACTOR_OPEN);
+    SetGUNContactor(CONTACTOR_OPEN);
+    DisableTriggers();
+    while (global_data_A36507.control_state == STATE_FAULT_SYSTEM) {
+      DoA36507();
+      
+      if (DISCRETE_INPUT_SYSTEM_ENABLE == !ILL_SYSTEM_ENABLE) {
+	global_data_A36507.control_state = STATE_SAFE_POWER_DOWN;
+      }
+    }
+    break;
+    
+
+  case STATE_FAULT_HOLD:
+    SendToEventLog(LOG_ID_ENTERED_STATE_FAULT_HOLD);
+    _SYNC_CONTROL_CLEAR_DEBUG_DATA = 0;
+    _SYNC_CONTROL_RESET_ENABLE = 0;
+    _SYNC_CONTROL_SYSTEM_HV_DISABLE = 1;
+    FRONT_PANEL_AC_POWER       = OLL_FRONT_PANEL_LIGHT_ON;
+    FRONT_PANEL_BEAM_ENABLE    = OLL_FRONT_PANEL_LIGHT_OFF;
+    FRONT_PANEL_X_RAY_ON       = OLL_FRONT_PANEL_LIGHT_OFF;
+    DISCRETE_OUTPUT_FAULT      = OLL_DISCRETE_OUTPUT_HIGH;
+    DISCRETE_OUTPUT_POWER_ON   = OLL_DISCRETE_OUTPUT_HIGH;
+    DISCRETE_OUTPUT_WARMUP     = OLL_DISCRETE_OUTPUT_LOW;      
+    DISCRETE_OUTPUT_STANDBY    = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_READY      = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_X_RAY_ON   = OLL_DISCRETE_OUTPUT_LOW;
+    SetACContactor(CONTACTOR_CLOSED);
+    SetHVContactor(CONTACTOR_OPEN);
+    SetGUNContactor(CONTACTOR_CLOSED);
+    DisableTriggers();
+    global_data_A36507.reset_requested = 0;
+    while (global_data_A36507.control_state == STATE_FAULT_HOLD) {
+      DoA36507();
+      if (global_data_A36507.reset_requested) {
+	global_data_A36507.control_state = STATE_FAULT_RESET;
+      }
+    }
+    break;
+    
+
+  case STATE_FAULT_RESET:
+    SendToEventLog(LOG_ID_ENTERED_STATE_FAULT_RESET);
+    _SYNC_CONTROL_CLEAR_DEBUG_DATA = 0;
+    _SYNC_CONTROL_RESET_ENABLE = 1;
+    _SYNC_CONTROL_SYSTEM_HV_DISABLE = 1;
+    FRONT_PANEL_AC_POWER       = OLL_FRONT_PANEL_LIGHT_ON;
+    FRONT_PANEL_BEAM_ENABLE    = OLL_FRONT_PANEL_LIGHT_OFF;
+    FRONT_PANEL_X_RAY_ON       = OLL_FRONT_PANEL_LIGHT_OFF;
+    DISCRETE_OUTPUT_FAULT      = OLL_DISCRETE_OUTPUT_HIGH;
+    DISCRETE_OUTPUT_POWER_ON   = OLL_DISCRETE_OUTPUT_HIGH;
+    DISCRETE_OUTPUT_WARMUP     = OLL_DISCRETE_OUTPUT_LOW;      
+    DISCRETE_OUTPUT_STANDBY    = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_READY      = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_X_RAY_ON   = OLL_DISCRETE_OUTPUT_LOW;
+    SetACContactor(CONTACTOR_CLOSED);
+    SetHVContactor(CONTACTOR_OPEN);
+    SetGUNContactor(CONTACTOR_CLOSED);
+    DisableTriggers();
+    global_data_A36507.reset_hold_timer = 0;
+    while (global_data_A36507.control_state == STATE_FAULT_RESET) {
+      DoA36507();
+      if (global_data_A36507.reset_hold_timer > FAULT_RESET_HOLD_TIME) { 
+	if (!CheckStandbyFault()) {
+	  global_data_A36507.control_state = STATE_STANDBY;
+	}
       }
       if (CheckWarmupFault()) {
 	global_data_A36507.control_state = STATE_FAULT_WARMUP;
@@ -379,163 +672,50 @@ void DoStateMachine(void) {
 	  (global_data_A36507.gun_warmup_remaining > 0)) {
 	global_data_A36507.control_state = STATE_FAULT_WARMUP;
       }
-
-     }
-    break;
-
-
-  case STATE_DRIVE_UP:
-    SendToEventLog(LOG_ID_ENTERED_STATE_DRIVE_UP);
-    _SYNC_CONTROL_RESET_ENABLE = 0;
-    _SYNC_CONTROL_PULSE_SYNC_DISABLE_HV = 0;
-    _SYNC_CONTROL_PULSE_SYNC_DISABLE_XRAY = 1;
-    _SYNC_CONTROL_SYSTEM_HV_DISABLE = 0;
-    _SYNC_CONTROL_PULSE_SYNC_FAULT_LED = 0;
-    _SYNC_CONTROL_PULSE_SYNC_WARMUP_LED = 0;
-    _SYNC_CONTROL_PULSE_SYNC_STANDBY_LED = 1;
-    _SYNC_CONTROL_PULSE_SYNC_READY_LED = 0;
-    while (global_data_A36507.control_state == STATE_DRIVE_UP) {
-      DoA36507();
-      if (!CheckHVOnFault()) {
-	global_data_A36507.control_state = STATE_READY;
-      }
-      if (_PULSE_SYNC_CUSTOMER_HV_OFF) {
-	global_data_A36507.control_state = STATE_STANDBY;
-      }
-      if (CheckStandbyFault()) {
-	global_data_A36507.drive_up_fault_counter++;
-	global_data_A36507.control_state = STATE_FAULT_LATCH_DECISION;
-      }
     }
     break;
     
-
-  case STATE_READY:
-    SendToEventLog(LOG_ID_ENTERED_STATE_READY);
-    _SYNC_CONTROL_RESET_ENABLE = 0;
-    _SYNC_CONTROL_PULSE_SYNC_DISABLE_HV = 0;
-    _SYNC_CONTROL_PULSE_SYNC_DISABLE_XRAY = 0;
-    _SYNC_CONTROL_SYSTEM_HV_DISABLE = 0;
-    _SYNC_CONTROL_PULSE_SYNC_FAULT_LED = 0;
-    _SYNC_CONTROL_PULSE_SYNC_WARMUP_LED = 0;
-    _SYNC_CONTROL_PULSE_SYNC_STANDBY_LED = 0;
-    _SYNC_CONTROL_PULSE_SYNC_READY_LED = 1;
-    global_data_A36507.drive_up_fault_counter = 0;
-    _STATUS_DRIVE_UP_TIMEOUT = 0;
-     while (global_data_A36507.control_state == STATE_READY) {
-      DoA36507();
-      if (_PULSE_SYNC_CUSTOMER_XRAY_OFF == 0) {
-	global_data_A36507.control_state = STATE_XRAY_ON;
-      }
-      if (_PULSE_SYNC_CUSTOMER_HV_OFF) {
-	global_data_A36507.control_state = STATE_DRIVE_UP;
-      }
-      if (CheckHVOnFault()) {
-	global_data_A36507.control_state = STATE_FAULT_LATCH_DECISION;
-	global_data_A36507.high_voltage_on_fault_counter++;
-      }
-    }
-    break;
-
-
-  case STATE_XRAY_ON:
-    SendToEventLog(LOG_ID_ENTERED_STATE_XRAY_ON);
-    _SYNC_CONTROL_RESET_ENABLE = 0;
-    _SYNC_CONTROL_PULSE_SYNC_DISABLE_HV = 0;
-    _SYNC_CONTROL_PULSE_SYNC_DISABLE_XRAY = 0;
-    _SYNC_CONTROL_SYSTEM_HV_DISABLE = 0;
-    _SYNC_CONTROL_PULSE_SYNC_FAULT_LED = 0;
-    _SYNC_CONTROL_PULSE_SYNC_WARMUP_LED = 0;
-    _SYNC_CONTROL_PULSE_SYNC_STANDBY_LED = 0;
-    _SYNC_CONTROL_PULSE_SYNC_READY_LED = 0;
-    global_data_A36507.high_voltage_on_fault_counter = 0;
-    while (global_data_A36507.control_state == STATE_XRAY_ON) {
-      DoA36507();
-      if (_PULSE_SYNC_CUSTOMER_XRAY_OFF) {
-	global_data_A36507.control_state = STATE_READY;
-      }
-      if (_PULSE_SYNC_CUSTOMER_HV_OFF) {
-	global_data_A36507.control_state = STATE_READY;
-      }
-      if (CheckHVOnFault()) {
-	//global_data_A36507.control_state = STATE_FAULT_LATCH_DECISION;
-	global_data_A36507.control_state = STATE_FAULT_HOLD;  // Why would you ever need to make this decision if X-Rays were on
-      }
-    }
-    break;
-
-
-  case STATE_FAULT_LATCH_DECISION:
-    SendToEventLog(LOG_ID_ENTERED_STATE_FAULT_LATCH_DECISION);
-    _SYNC_CONTROL_RESET_ENABLE = 0;
-    _SYNC_CONTROL_PULSE_SYNC_DISABLE_HV = 1;
-    _SYNC_CONTROL_PULSE_SYNC_DISABLE_XRAY = 1;
-    _SYNC_CONTROL_SYSTEM_HV_DISABLE = 1;
-    _SYNC_CONTROL_PULSE_SYNC_FAULT_LED = 1;
-    _SYNC_CONTROL_PULSE_SYNC_WARMUP_LED = 0;
-    _SYNC_CONTROL_PULSE_SYNC_STANDBY_LED = 0;
-    _SYNC_CONTROL_PULSE_SYNC_READY_LED = 0;
-    global_data_A36507.reset_requested = 0;
-    global_data_A36507.reset_hold_timer = 0;
-    while (global_data_A36507.control_state == STATE_FAULT_LATCH_DECISION) {
-      DoA36507();
-      if (global_data_A36507.reset_hold_timer > MINIMUM_FAULT_HOLD_TIME) { 
-	// Need to wait in this state for X_RAY_ON status to propigate from the pulse sync board
-	global_data_A36507.control_state = STATE_FAULT_RESET_HOLD;
-      }
-      if (CheckFaultLatching()) {
-	global_data_A36507.control_state = STATE_FAULT_HOLD;
-      }
-    }
-    break;
-
-
-  case STATE_FAULT_HOLD:
-    SendToEventLog(LOG_ID_ENTERED_STATE_FAULT_HOLD);
-    _SYNC_CONTROL_RESET_ENABLE = 0;
-    _SYNC_CONTROL_PULSE_SYNC_DISABLE_HV = 1;
-    _SYNC_CONTROL_PULSE_SYNC_DISABLE_XRAY = 1;
-    _SYNC_CONTROL_SYSTEM_HV_DISABLE = 1;
-    _SYNC_CONTROL_PULSE_SYNC_FAULT_LED = 1;
-    _SYNC_CONTROL_PULSE_SYNC_WARMUP_LED = 0;
-    _SYNC_CONTROL_PULSE_SYNC_STANDBY_LED = 0;
-    _SYNC_CONTROL_PULSE_SYNC_READY_LED = 0;
-    global_data_A36507.reset_requested = 0;
-      while (global_data_A36507.control_state == STATE_FAULT_HOLD) {
-      DoA36507();
-      if (global_data_A36507.reset_requested) {
-	global_data_A36507.control_state = STATE_FAULT_RESET_HOLD;
-      }
-     }
-    break;
     
-
-  case STATE_FAULT_RESET_HOLD:
-    SendToEventLog(LOG_ID_ENTERED_STATE_FAULT_RESET_HOLD);
+  case STATE_SAFE_POWER_DOWN:
+    SendToEventLog(LOG_ID_ENTERED_STATE_SAFE_POWER_DOWN);
     _SYNC_CONTROL_RESET_ENABLE = 1;
-    _SYNC_CONTROL_PULSE_SYNC_DISABLE_HV = 1;
-    _SYNC_CONTROL_PULSE_SYNC_DISABLE_XRAY = 1;
     _SYNC_CONTROL_SYSTEM_HV_DISABLE = 1;
-    _SYNC_CONTROL_PULSE_SYNC_FAULT_LED = 1;
-    _SYNC_CONTROL_PULSE_SYNC_WARMUP_LED = 0;
-    _SYNC_CONTROL_PULSE_SYNC_STANDBY_LED = 0;
-    _SYNC_CONTROL_PULSE_SYNC_READY_LED = 0;
-    global_data_A36507.reset_requested = 0;
-    global_data_A36507.reset_hold_timer = 0;
-    while (global_data_A36507.control_state == STATE_FAULT_RESET_HOLD) {
+    FRONT_PANEL_AC_POWER       = OLL_FRONT_PANEL_LIGHT_ON;
+    FRONT_PANEL_BEAM_ENABLE    = OLL_FRONT_PANEL_LIGHT_OFF;
+    FRONT_PANEL_X_RAY_ON       = OLL_FRONT_PANEL_LIGHT_OFF;
+    DISCRETE_OUTPUT_FAULT      = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_POWER_ON   = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_WARMUP     = OLL_DISCRETE_OUTPUT_LOW;      
+    DISCRETE_OUTPUT_STANDBY    = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_READY      = OLL_DISCRETE_OUTPUT_LOW;
+    DISCRETE_OUTPUT_X_RAY_ON   = OLL_DISCRETE_OUTPUT_LOW;
+    DisableTriggers();
+    // NO Change to the Contactors yet
+    // DPARKER - SHUT DOWN TCP CONNECTION
+    global_data_A36507.shutdown_counter = 0;
+    while (global_data_A36507.control_state == STATE_SAFE_POWER_DOWN) {
       DoA36507();
-      if (global_data_A36507.reset_hold_timer > FAULT_RESET_HOLD_TIME) { 
-	global_data_A36507.control_state = STATE_FAULT_STANDBY;
+      
+      if (global_data_A36507.shutdown_counter >= 100) {
+	SetGUNContactor(CONTACTOR_OPEN);
+	SetHVContactor(CONTACTOR_OPEN);
+      }
+      
+      if (global_data_A36507.shutdown_counter >= 200) {
+	SetACContactor(CONTACTOR_OPEN);
+      }
+
+      if (global_data_A36507.shutdown_counter >= 500) {
+	__asm__ ("Reset");
       }
     }
     break;
 
-    
 
-    
   default:
     global_data_A36507.control_state = STATE_FAULT_SYSTEM;
     break;
+
   }
 }
 
@@ -885,7 +1065,6 @@ void UpdateDebugData(void) {
   debug_data_ecb.debug_reg[0xE] = ETMTCPModbusGetErrorInfo(ERROR_COUNT_SM_DISCONNECT);
   debug_data_ecb.debug_reg[0xF] = global_data_A36507.system_serial_number;
 
-  debug_data_ecb.debug_reg[0x7] = watchdog_test_counter;
 
   
 }
@@ -893,43 +1072,12 @@ void UpdateDebugData(void) {
 
 void DoA36507(void) {
   
-#ifdef __WATCHDOG_MASTER_EMULATION
-  static unsigned long watchdog_transmit_timer_holding_var;
-
-  ClrWdt();
-  if (ETMTickRunOnceEveryNMilliseconds(20, &watchdog_transmit_timer_holding_var)) {
-    TestSendWatchdogMessage();
-  }
-#endif
-  
-  
-  if (LookForWatchdogMessage()) {
-    // Clear the watchdog counter
-    watchdog_test_counter++;
-    watchdog_timeout_holding_var = ETMTickGet();
-#ifndef __WATCHDOG_MASTER_EMULATION
-    SendWatchdogResponse(watchdog_test_counter);
-    if (_SYNC_CONTROL_RESET_ENABLE) {
-      _FAULT_WATCHDOG_ERROR = 0;
-    }
-#endif
-  }
-  
-  if (ETMTickGreaterThanNMilliseconds(WATCHDOG_TIMEOUT_MILLISEC, watchdog_timeout_holding_var)) {
-    // There is a watchdog timeout
-    if (_FAULT_WATCHDOG_ERROR == 1) {
-      // There is a new watchdog fault, send to the event log
-      //SendToEventLog(0xFF00);
-    }
-    _FAULT_WATCHDOG_ERROR = 1;
-  }
-
   etm_can_master_sync_message.sync_1_ecb_state_for_fault_logic = global_data_A36507.control_state;
   etm_can_master_sync_message.sync_2 = 0x0123;
   etm_can_master_sync_message.sync_3 = 0x4567;
 
   ETMCanMasterDoCan();
-  ETMLinacModbusUpdate();
+  //ETMLinacModbusUpdate();
   ExecuteEthernetCommand();
 
   if (global_data_A36507.eeprom_failure) {
@@ -941,8 +1089,8 @@ void DoA36507(void) {
   // If so set a fault that can only be cleared with a reset command
   if (!_PULSE_SYNC_CUSTOMER_XRAY_OFF) { 
     if ((global_data_A36507.control_state == STATE_WARMUP) ||
-	(global_data_A36507.control_state == STATE_FAULT_WARMUP) ||
-	(global_data_A36507.control_state == STATE_FAULT_STANDBY)) { 
+	(global_data_A36507.control_state == STATE_FAULT_WARMUP)) {
+      // DPARKER FIX THIS LOGIC
       // Customer Enabled XRAYs when not ready
       _FAULT_X_RAY_ON_LOGIC_ERROR = 1;
     }
@@ -1239,7 +1387,6 @@ void UpdateHeaterScale() {
 
 
 void InitializeA36507(void) {
-  unsigned int loop_counter;
   unsigned int eeprom_read[16];
 
   _FAULT_REGISTER      = 0;
@@ -1254,47 +1401,77 @@ void InitializeA36507(void) {
   // Set the not connected bits for all boards
   *(unsigned int*)&board_com_ok = 0x0000;
     
-  // Check it reset was a result of full power cycle
-  _STATUS_LAST_RESET_WAS_POWER_CYCLE = 0;
-  if (PIN_IN_ETM_RESET_DETECT) {
-    // The power was off for more than a couple hundered milliseconds
-    // All values in RAM are random.
-    _STATUS_LAST_RESET_WAS_POWER_CYCLE = 1;
-  }
 
+  
+  
 
   // Initialize all I/O Registers
-  TRISA = A36507_TRISA_VALUE;
-  TRISB = A36507_TRISB_VALUE;
-  TRISC = A36507_TRISC_VALUE;
-  TRISD = A36507_TRISD_VALUE;
-  TRISF = A36507_TRISF_VALUE;
-  TRISG = A36507_TRISG_VALUE;
+  TRISA = A37780_TRISA_VALUE;
+  TRISB = A37780_TRISB_VALUE;
+  TRISC = A37780_TRISC_VALUE;
+  TRISD = A37780_TRISD_VALUE;
+  TRISF = A37780_TRISF_VALUE;
+  TRISG = A37780_TRISG_VALUE;
 
 
-  // Initialize the reset detect circuit
-  TRIS_PIN_ETM_RESET_RETECT = 0;  // Pin is an output
-  PIN_OUT_ETM_RESET_DETECT = 0;   // Pin is low so that reset detect capacitor is charged 
+  // Check it reset was a result of full power cycle
+  /*
+//Initialize the internal ADC for Startup Power Checks
+  // ---- Configure the dsPIC ADC Module ------------ //
+  ADCON1 = ADCON1_SETTING;             // Configure the high speed ADC module based on H file parameters
+  ADCON2 = ADCON2_SETTING;             // Configure the high speed ADC module based on H file parameters
+  ADPCFG = ADPCFG_SETTING;             // Set which pins are analog and which are digital I/O
+  ADCHS  = ADCHS_SETTING;              // Configure the high speed ADC module based on H file parameters
+
+  ADCON3 = ADCON3_SETTING;             // Configure the high speed ADC module based on H file parameters
+  ADCSSL = ADCSSL_SETTING;
+
+  _ADIF = 0;
+  _ADON = 1;
+  
 
 
+ETMAnalogInputInitialize(&analog_5V_vmon, 
+			   MACRO_DEC_TO_SCALE_FACTOR_16(2.440215),
+			   ETM_ANALOG_OFFSET_ZERO,
+			   ETM_ANALOG_AVERAGE_8_SAMPLES);
+
+
+
+  // Wait for data to be read
+  while (_ADIF == 0);
+  
+  
+  ETMAnalogInputUpdate(&analog_5V_vmon, ADCBUF0);
+  ETMAnalogInputUpdate(&analog_5V_vmon, ADCBUF2);
+  ETMAnalogInputUpdate(&analog_5V_vmon, ADCBUF4);
+  ETMAnalogInputUpdate(&analog_5V_vmon, ADCBUF6);
+  ETMAnalogInputUpdate(&analog_5V_vmon, ADCBUF8);
+  ETMAnalogInputUpdate(&analog_5V_vmon, ADCBUFA);
+  ETMAnalogInputUpdate(&analog_5V_vmon, ADCBUFC);
+  ETMAnalogInputUpdate(&analog_5V_vmon, ADCBUFE);
+  ETMAnalogInputUpdate(&analog_5V_vmon, ADCBUFE);
+  */
+
+  _ADON = 0;
+  
+  // DPARKER - MONITOR THE LENGTH OF TIME PROCESSOR WAS OFF FOR
+  _STATUS_LAST_RESET_WAS_POWER_CYCLE = 0;
+  // DPARKER Figure out how to set this status correctly
+
+
+  
   ETMTickInitialize(FCY_CLK, ETM_TICK_USE_TIMER_1);
   
-  // manually clock out I2C CLK to clear any connected processors that may have been stuck on a reset  
-  _TRISG2 = 0; // g2 is output
-  for (loop_counter = 0; loop_counter <= 100; loop_counter++) {
-    _LATG2 = 0;
-    __delay32(25);
-    _LATG2 = 1;
-    __delay32(25);
-  }
-  global_data_A36507.eeprom_failure = 0;
-  ETMEEPromUseI2C();
-  ETMEEPromConfigureI2CDevice(EEPROM_SIZE_8K_BYTES,
+  ETMEEPromUseSPI();
+  ETMEEPromConfigureSPIDevice(EEPROM_SIZE_8K_BYTES,
 			      FCY_CLK,
-			      ETM_I2C_400K_BAUD,
-			      EEPROM_I2C_ADDRESS_0,
-			      I2C_PORT_1);
-  ConfigureDS3231(&U6_DS3231, I2C_PORT_1, RTC_DEFAULT_CONFIG, FCY_CLK, ETM_I2C_400K_BAUD);
+			      SPI_CLK_10_MBIT,
+			      ETM_SPI_PORT_2,
+			      _PIN_RC3,
+			      _PIN_NOT_CONNECTED,
+			      _PIN_RC4);
+  // This will also configure the I/O Expander to operate at the same bit rate
   
   // Read the on timers, pulse counters, and warmup timers stored in the EEPROM
   if (ETMEEPromReadPage(EEPROM_PAGE_ECB_COUNTER_AND_TIMERS, ECB_COUNTER_AND_TIMERS_RAM_POINTER) == 0) {
@@ -1312,7 +1489,6 @@ void InitializeA36507(void) {
   global_data_A36507.magnetron_warmup_remaining = (global_data_A36507.holding_bits_for_warmup & 0x3FF);
   global_data_A36507.holding_bits_for_warmup >>= 10;
   global_data_A36507.thyratron_warmup_remaining = (global_data_A36507.holding_bits_for_warmup & 0xFFF);
-
   
   ClrWdt();
 
@@ -1321,11 +1497,11 @@ void InitializeA36507(void) {
 
   
   // Read the current time
-  ReadDateAndTime(&U6_DS3231, &global_data_A36507.time_now);
-  mem_time_seconds_now = RTCDateToSeconds(&global_data_A36507.time_now);
-
+  // DPARKER - Figure out how to set the time based on the off time and information from the GUI
+  mem_time_seconds_now = 0;
+  
   CalculateHeaterWarmupTimers();     // Calculate all of the warmup counters based on previous warmup counters
-
+  
   
   // Initialize the Can module
   if (ETMEEPromReadPage(EEPROM_PAGE_ECB_BOARD_CONFIGURATION, &eeprom_read[0]) == 0) {
@@ -1342,6 +1518,7 @@ void InitializeA36507(void) {
 
   // Initialize TCPmodbus Module
 #if 0
+  //DPARKER add back in method to configure IP ADDRESS
   ip_config.remote_ip_addr   = ETMEEPromReadWord(EEPROM_REGISTER_REMOTE_IP_ADDRESS);
   ip_config.remote_ip_addr <<= 16;
   ip_config.remote_ip_addr  += ETMEEPromReadWord(EEPROM_REGISTER_REMOTE_IP_ADDRESS + 1);
@@ -1366,87 +1543,8 @@ void InitializeA36507(void) {
   TCPmodbus_init(&ip_config);
 #endif
   
-  ETMLinacModbusInitialize();
+  //ETMLinacModbusInitialize();
   
-  
-  //Initialize the internal ADC for Startup Power Checks
-  // ---- Configure the dsPIC ADC Module ------------ //
-  ADCON1 = ADCON1_SETTING;             // Configure the high speed ADC module based on H file parameters
-  ADCON2 = ADCON2_SETTING;             // Configure the high speed ADC module based on H file parameters
-  ADPCFG = ADPCFG_SETTING;             // Set which pins are analog and which are digital I/O
-  ADCHS  = ADCHS_SETTING;              // Configure the high speed ADC module based on H file parameters
-
-  ADCON3 = ADCON3_SETTING;             // Configure the high speed ADC module based on H file parameters
-  ADCSSL = ADCSSL_SETTING;
-
-  _ADIF = 0;
-  _ADON = 1;
-
-  
-  ETMAnalogInputInitialize(&analog_5V_vmon, 
-			   MACRO_DEC_TO_SCALE_FACTOR_16(2.440215),
-			   ETM_ANALOG_OFFSET_ZERO,
-			   ETM_ANALOG_AVERAGE_8_SAMPLES);
-
-
-
-  // Wait for data to be read
-  while (_ADIF == 0);
-  
-  
-  ETMAnalogInputUpdate(&analog_5V_vmon, ADCBUF0);
-  ETMAnalogInputUpdate(&analog_5V_vmon, ADCBUF2);
-  ETMAnalogInputUpdate(&analog_5V_vmon, ADCBUF4);
-  ETMAnalogInputUpdate(&analog_5V_vmon, ADCBUF6);
-  ETMAnalogInputUpdate(&analog_5V_vmon, ADCBUF8);
-  ETMAnalogInputUpdate(&analog_5V_vmon, ADCBUFA);
-  ETMAnalogInputUpdate(&analog_5V_vmon, ADCBUFC);
-  ETMAnalogInputUpdate(&analog_5V_vmon, ADCBUFE);
-  ETMAnalogInputUpdate(&analog_5V_vmon, ADCBUFE);
-
-  //test_0 = ETMAnalogInputGetReading(&analog_5V_vmon);
-
-  //global_data_A36507.analog_input_5v_mon.filtered_adc_reading  = ADCBUF0 + ADCBUF2 + ADCBUF4 + ADCBUF6 + ADCBUF8 + ADCBUFA + ADCBUFC + ADCBUFE;
-  //global_data_A36507.analog_input_3v3_mon.filtered_adc_reading = ADCBUF1 + ADCBUF3 + ADCBUF5 + ADCBUF7 + ADCBUF9 + ADCBUFB + ADCBUFD + ADCBUFF;
-
-  //global_data_A36507.analog_input_5v_mon.filtered_adc_reading  <<= 1;
-  //global_data_A36507.analog_input_3v3_mon.filtered_adc_reading <<= 1;  
-
-
-
-  //ETMAnalogScaleCalibrateADCReading(&global_data_A36507.analog_input_5v_mon);
-  //ETMAnalogScaleCalibrateADCReading(&global_data_A36507.analog_input_3v3_mon);
-
-  
-  _ADON = 0;
-
-
-  // Setup uart2 for watchdog
-  
-#define UART2_BAUDRATE             112000        // 113K Baud Rate
-#define A36507_U2MODE_VALUE        (UART_EN & UART_IDLE_STOP & UART_DIS_WAKE & UART_DIS_LOOPBACK & UART_DIS_ABAUD & UART_NO_PAR_8BIT & UART_1STOPBIT)
-#define A36507_U2STA_VALUE         (UART_INT_TX & UART_TX_PIN_NORMAL & UART_TX_ENABLE & UART_INT_RX_CHAR & UART_ADR_DETECT_DIS)
-#define A36507_U2BRG_VALUE         (((FCY_CLK/UART2_BAUDRATE)/16)-1)
-
-
-  _U2RXIF = 0;
-  _U2RXIE = 1;
-  _U2RXIP = 3;
-
-  _U2TXIF = 0;
-  _U2TXIE = 1;
-  _U2TXIP = 3;
-
-  U2BRG = A36507_U2BRG_VALUE;
-  U2STA = A36507_U2STA_VALUE;
-  U2MODE = A36507_U2MODE_VALUE;
-  U2STAbits.UTXEN = 1;
-
-  PIN_OUT_ETM_UART_2_DE = OLL_UART_TX_DRIVER_ENABLE;
-  
-  BufferByte64Initialize(&uart2_input_buffer);
-  BufferByte64Initialize(&uart2_output_buffer);
-
 }
  
  
@@ -1534,27 +1632,27 @@ void FlashLeds(void) {
   switch (((global_data_A36507.startup_counter >> 4) & 0b11)) {
     
   case 0:
-    PIN_OUT_ETM_LED_OPERATIONAL_GREEN = !OLL_LED_ON;
-    PIN_OUT_ETM_LED_TEST_POINT_A_RED = !OLL_LED_ON;
-    PIN_OUT_ETM_LED_TEST_POINT_B_GREEN = !OLL_LED_ON;
+    PIN_OUT_LED_GRN_OPERATION = !OLL_LED_ON;
+    PIN_OUT_LED_RED_TEST_POINT_A = !OLL_LED_ON;
+    PIN_OUT_LED_GRN_TEST_POINT_B = !OLL_LED_ON;
     break;
     
   case 1:
-    PIN_OUT_ETM_LED_OPERATIONAL_GREEN = OLL_LED_ON;
-    PIN_OUT_ETM_LED_TEST_POINT_A_RED = !OLL_LED_ON;
-    PIN_OUT_ETM_LED_TEST_POINT_B_GREEN = !OLL_LED_ON;
+    PIN_OUT_LED_GRN_OPERATION = OLL_LED_ON;
+    PIN_OUT_LED_RED_TEST_POINT_A = !OLL_LED_ON;
+    PIN_OUT_LED_GRN_TEST_POINT_B = !OLL_LED_ON;
     break;
     
   case 2:
-    PIN_OUT_ETM_LED_OPERATIONAL_GREEN = OLL_LED_ON;
-    PIN_OUT_ETM_LED_TEST_POINT_A_RED = OLL_LED_ON;
-    PIN_OUT_ETM_LED_TEST_POINT_B_GREEN = !OLL_LED_ON;
+    PIN_OUT_LED_GRN_OPERATION = OLL_LED_ON;
+    PIN_OUT_LED_RED_TEST_POINT_A = OLL_LED_ON;
+    PIN_OUT_LED_GRN_TEST_POINT_B = !OLL_LED_ON;
     break;
     
   case 3:
-    PIN_OUT_ETM_LED_OPERATIONAL_GREEN = OLL_LED_ON;
-    PIN_OUT_ETM_LED_TEST_POINT_A_RED = OLL_LED_ON;
-    PIN_OUT_ETM_LED_TEST_POINT_B_GREEN = OLL_LED_ON;
+    PIN_OUT_LED_GRN_OPERATION = OLL_LED_ON;
+    PIN_OUT_LED_RED_TEST_POINT_A = OLL_LED_ON;
+    PIN_OUT_LED_GRN_TEST_POINT_B = OLL_LED_ON;
     break;
   }
 }
@@ -2414,25 +2512,183 @@ void LoadConfig(unsigned int source) {
 
 
 
+// DPAKRER - Features to add to support Pulse Sync Functionality
+/*
+  Trigger Interrupt
+    - Start all the output compare modules
+    - Calculate the PRF
+    - Calculate the MagnetronPower (this may require changes to existing code)
 
-void __attribute__((interrupt(__save__(CORCON,SR)),no_auto_psv)) _U2RXInterrupt(void) {
-  _U2RXIF = 0;
-  while (U2STAbits.URXDA) {
-    BufferByte64WriteByte(&uart2_input_buffer, U2RXREG);
+  Add Serial Dose Functions
+    
+  Set the Trigger Delays
+
+  Look at the discrete inputs from customer
+
+  Set discrete outputs to customer
+
+  Manage IO Expander
+
+  Monitor all of the internal data for faults.
+
+
+ */
+
+
+#define OPERATION_MODE_SINGLE_ENERGY   1
+
+// External Trigger
+void __attribute__((interrupt, shadow, no_auto_psv)) _INT1Interrupt(void) {
+  unsigned int next_dose_level;
+  
+  if (mode_select_internal_trigger == 1) {
+    if (PIN_TRIGGER_IN == ILL_TRIGGER_ACTIVE) {
+      // The Trigger Pulse is Valid
+      if (_T4IF) {
+	// The minimum period between pulses has passed
+	if (global_data_A36507.control_state == STATE_XRAY_ON) {
+	  T2CONbits.TON = 1; 	// Start the triggers
+	}
+	TMR4 = 0;
+	_T4IF = 0;
+
+	// Figure out the next dose level
+	next_dose_level = (global_data_A36507.dose_level^0x0001);
+	if (global_data_A36507.single_dual_energy_mode_selection == OPERATION_MODE_SINGLE_ENERGY) {
+	  next_dose_level = global_data_A36507.dose_level;
+	}
+	global_data_A36507.dose_level = next_dose_level;
+
+	SetDoseLevelTiming();
+      } else {
+	fault_data.trigger_period_too_short_count++;
+      }
+    } else {
+      fault_data.trigger_width_too_short_count++;
+    }
+  } else {
+    fault_data.external_trigger_when_internal_selected_count++;
+  }
+}
+
+void DoPostTriggerProcess(void) {
+    // Set the timing registers for dose level
+
+  
+}
+
+#define TRIGGER_STOP_TIME 400 // 20uS
+
+void SetAllLevelTiming(void) {
+  SetTriggerTiming(TRIGGER_PFN_TRIGGER, local_pulse_sync_pfn_trig_dose_all, TRIGGER_STOP_TIME);
+  SetTriggerTiming(TRIGGER_HVPS_INHIBIT, local_pulse_sync_hvps_trig_start_dose_all, TRIGGER_STOP_TIME);
+  SetTriggerTiming(TRIGGER_MAGNETRON_I_SAMP, local_pulse_sync_pulse_mon_trig_start_dose_all, TRIGGER_STOP_TIME);
+  SetTriggerTiming(TRIGGER_TARGET_I_SAMP, local_pulse_sync_pulse_mon_trig_start_dose_all, TRIGGER_STOP_TIME);
+  SetTriggerTiming(TRIGGER_BALANCED_OUT_1, 0, TRIGGER_STOP_TIME);
+}
+
+
+
+
+void SetDoseLevelTiming(void) {
+  
+  switch (global_data_A36507.dose_level) {
+
+  case DOSE_LEVEL_CARGO_HIGH:
+    SetTriggerTiming(TRIGGER_GRID_TRIGGER, local_pulse_sync_gun_trig_start_max_dose_1, local_pulse_sync_gun_trig_stop_max_dose_1);
+    SetTriggerTiming(TRIGGER_AFC_SAMPLE, local_pulse_sync_afc_trig_dose_1, TRIGGER_STOP_TIME);
+    // SET SPARE TRIGGER IF NEEDED
+    break;
+
+  case DOSE_LEVEL_CARGO_LOW:
+    SetTriggerTiming(TRIGGER_GRID_TRIGGER, local_pulse_sync_gun_trig_start_max_dose_0, local_pulse_sync_gun_trig_stop_max_dose_0);
+    SetTriggerTiming(TRIGGER_AFC_SAMPLE, local_pulse_sync_afc_trig_dose_0, TRIGGER_STOP_TIME);
+    break;
+
+  case DOSE_LEVEL_CAB_HIGH:
+    break;
+
+  case DOSE_LEVEL_CAB_LOW:
+    break;
   }
 }
 
 
-void __attribute__((interrupt(__save__(CORCON,SR)),no_auto_psv)) _U2TXInterrupt(void) {
-  _U2TXIF = 0;
-  while ((!U2STAbits.UTXBF) && (BufferByte64BytesInBuffer(&uart2_output_buffer))) {
-    /*
-      There is at least one byte available for writing in the outputbuffer and the transmit buffer is not full.
-      Move a byte from the output buffer into the transmit buffer
-    */
-    U2TXREG = BufferByte64ReadByte(&uart2_output_buffer);
+void SetTriggerTiming(unsigned int trigger_type, unsigned int start_time, unsigned int stop_time) {
+  // DPARKER - error check start and stop time relative to each other and maximums to guarantee they happen
+
+  switch (trigger_type) {
+
+  case TRIGGER_GRID_TRIGGER:
+    OC1R  = start_time;
+    OC1RS = stop_time;
+    // DPARKER - MORE WORK TO DO WITH THIS TRIGGER
+    // MAY NEED TO ADD DYNAMIC DOSE HERE
+    // ADD writing to the delay Lines
+    break;
+
+  case TRIGGER_PFN_TRIGGER:
+    OC2R  = start_time;
+    OC2RS = stop_time;
+    break;
+
+  case TRIGGER_HVPS_INHIBIT:
+    OC3R  = start_time;
+    OC3RS = stop_time;
+    break;
+
+  case TRIGGER_MAGNETRON_I_SAMP:
+    OC4R  = start_time;
+    OC4RS = stop_time;
+    break;
+    
+  case TRIGGER_AFC_SAMPLE:
+    OC5R  = start_time;
+    OC5RS = stop_time;
+    break;
+
+  case TRIGGER_TARGET_I_SAMP:
+    OC6R  = start_time;
+    OC6RS = stop_time;
+    break;
+
+  case TRIGGER_SPARE:
+    OC7R  = start_time;
+    OC7RS = stop_time;
+    break;
+
+  case TRIGGER_BALANCED_OUT_1:
+    OC8R  = start_time;
+    OC8RS = stop_time;
+    break;
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 void __attribute__((interrupt, no_auto_psv)) _OscillatorFail(void) {
@@ -2454,109 +2710,3 @@ void __attribute__((interrupt, no_auto_psv)) _DefaultInterrupt(void) {
 
 
 
-void SendWatchdogResponse(unsigned int pulse_count) {
-  unsigned char data_to_send[10];
-  unsigned int crc_calc;
-  data_to_send[0] = 0xF1;
-  data_to_send[1] = 0xF2;
-  data_to_send[2] = 0xF3;
-  data_to_send[3] = (pulse_count >> 8);
-  data_to_send[4] = pulse_count;
-  data_to_send[5] = 0xF4;
-  crc_calc = ETMCRC16(&data_to_send[0], 6);
-
-  BufferByte64WriteByte(&uart2_output_buffer, data_to_send[0]);
-  BufferByte64WriteByte(&uart2_output_buffer, data_to_send[1]);
-  BufferByte64WriteByte(&uart2_output_buffer, data_to_send[2]);
-  BufferByte64WriteByte(&uart2_output_buffer, data_to_send[3]);
-  BufferByte64WriteByte(&uart2_output_buffer, data_to_send[4]);
-  BufferByte64WriteByte(&uart2_output_buffer, data_to_send[5]);
-  BufferByte64WriteByte(&uart2_output_buffer, (crc_calc >> 8));
-  BufferByte64WriteByte(&uart2_output_buffer, (crc_calc & 0x00FF));
-  
-  
-  if (!U2STAbits.UTXBF) {
-    /*
-      The transmit buffer is not full.
-      Move a byte from the output buffer into the transmit buffer
-      All subsequent bytes will be moved from the output buffer to the transmit buffer by the U1 TX Interrupt
-    */
-    U2TXREG = BufferByte64ReadByte(&uart2_output_buffer);
-  }
-}
-
-
-
-void TestSendWatchdogMessage(void) {
-  BufferByte64WriteByte(&uart2_output_buffer, 0xF1);
-  BufferByte64WriteByte(&uart2_output_buffer, 0xF2);
-  BufferByte64WriteByte(&uart2_output_buffer, 0xF3);
-  BufferByte64WriteByte(&uart2_output_buffer, 0x00);
-  BufferByte64WriteByte(&uart2_output_buffer, 0x00);
-  BufferByte64WriteByte(&uart2_output_buffer, 0xF4);
-  BufferByte64WriteByte(&uart2_output_buffer, 0x1E);
-  BufferByte64WriteByte(&uart2_output_buffer, 0x37);
-
-  if (!U2STAbits.UTXBF) {
-    /*
-      The transmit buffer is not full.
-      Move a byte from the output buffer into the transmit buffer
-      All subsequent bytes will be moved from the output buffer to the transmit buffer by the U1 TX Interrupt
-    */
-    U2TXREG = BufferByte64ReadByte(&uart2_output_buffer);
-  }
-}
-
-
-unsigned int LookForWatchdogMessage(void) {
-  unsigned int crc_received = 0;
-  unsigned int crc_calc = 0;
-  unsigned int message_received = 0;
-  // Look for messages in the UART Buffer;
-  // If multiple messages are found the old data is overwritten by the newer data
-  unsigned char message[9];
-  
-  while (BufferByte64BytesInBuffer(&uart2_input_buffer) >= 8) {
-    // Look for message
-    test_uart_data_recieved++;
-    message[0] = BufferByte64ReadByte(&uart2_input_buffer);
-    if (message[0] != 0xF1) {
-      continue;
-    }
-    message[1] = BufferByte64ReadByte(&uart2_input_buffer);
-    if (message[1] != 0xF2) {
-      continue;
-    }
-    message[2] = BufferByte64ReadByte(&uart2_input_buffer);
-    if (message[2] != 0xF3) {
-      continue;
-    }
-    message[3] = BufferByte64ReadByte(&uart2_input_buffer);
-    message[4] = BufferByte64ReadByte(&uart2_input_buffer);
-
-
-    message[5] = BufferByte64ReadByte(&uart2_input_buffer);
-    if (message[5] != 0xF4) {
-      continue;
-    }
-    message[6] = BufferByte64ReadByte(&uart2_input_buffer);
-    message[7] = BufferByte64ReadByte(&uart2_input_buffer);
-    
-    crc_received = message[7];
-    crc_received <<= 8;
-    crc_received += message[6];
-
-    crc_calc = ETMCRC16(&message[0], 6);
-    test_ref_det_recieved++;
-    if (crc_received == crc_calc) {
-      test_ref_det_good_message++;
-      // The CRC Matched
-      global_data_A36507.most_recent_watchdog_reading = message[4];
-      global_data_A36507.most_recent_watchdog_reading <<= 8;
-      global_data_A36507.most_recent_watchdog_reading += message[3];
-      message_received = 1;
-      BufferByte64Initialize(&uart2_input_buffer);
-    }
-  }
-  return message_received;
-}
