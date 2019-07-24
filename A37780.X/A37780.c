@@ -6,6 +6,7 @@
 #include "ETM_TICK.h"
 
 
+
 unsigned int mode_select_internal_trigger;  // DPARKER create structure for run time configuration parameters
 
 
@@ -1476,6 +1477,9 @@ ETMAnalogInputInitialize(&analog_5V_vmon,
 			      _PIN_RC4);
   // This will also configure the I/O Expander to operate at the same bit rate
   
+  // LoadDefaultSystemCalibrationToEEProm();  DPARKER need to uncomment this line to initialize boards until we have ethernet
+  
+  
   // Read the on timers, pulse counters, and warmup timers stored in the EEPROM
   if (ETMEEPromReadPage(EEPROM_PAGE_ECB_COUNTER_AND_TIMERS, ECB_COUNTER_AND_TIMERS_RAM_POINTER) == 0) {
     if (ETMEEPromReadPage(EEPROM_PAGE_ECB_COUNTER_AND_TIMERS, ECB_COUNTER_AND_TIMERS_RAM_POINTER) == 0) {
@@ -2813,3 +2817,43 @@ void __attribute__((interrupt, no_auto_psv)) _DefaultInterrupt(void) {
 
 
 
+/*
+
+unsigned int ETMEEPromPrivateReadStatusSPITest() {
+  unsigned int spi_error;
+  unsigned long temp;
+  unsigned int return_data;
+
+  ETMClearPin(external_eeprom_SPI.pin_chip_select_not);
+  
+  spi_error = 0;
+  
+  // FORCE 8 Bit MODE command word
+  if (external_eeprom_SPI.spi_port == ETM_SPI_PORT_1) {
+    SPI1CONbits.MODE16 = 0;
+  } else {
+    SPI2CONbits.MODE16 = 0;
+  }
+
+  // Send out the Read Status
+  if (spi_error == 0) {
+    temp = SendAndReceiveSPI(READ_STATUS_COMMAND_BYTE, external_eeprom_SPI.spi_port);
+    if (temp == 0x11110000) {
+      spi_error = 0b00000001;
+    }
+  }
+  // Read in the status byte
+  if (spi_error == 0) {
+    temp = SendAndReceiveSPI(0, external_eeprom_SPI.spi_port);
+    if (temp == 0x11110000) {
+      spi_error = 0b00000001;
+    }
+  }
+
+  ETMSetPin(external_eeprom_SPI.pin_chip_select_not);
+  return_data = temp;
+  
+  return return_data;
+}
+
+*/
