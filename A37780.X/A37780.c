@@ -91,7 +91,7 @@ unsigned int b_sent;
 
 
 // ------------------ PROCESSOR CONFIGURATION ------------------------//
-_FOSC(ECIO_PLL16 & CSW_FSCM_OFF);                                         // 5Mhz External Osc created 20Mhz FCY
+_FOSC(ECIO_PLL8 & CSW_FSCM_OFF);                                           // 10hz External Osc created 20Mhz FCY
 _FWDT(WDT_OFF & WDTPSA_512 & WDTPSB_8);                                    // 8 Second watchdog timer 
 _FBORPOR(PWRT_4 & NONE & PBOR_OFF & MCLR_EN);                             // 4ms Power up timer, Low Voltage Reset disabled
 _FBS(WR_PROTECT_BOOT_OFF & NO_BOOT_CODE & NO_BOOT_EEPROM & NO_BOOT_RAM);  // 
@@ -164,8 +164,6 @@ void SetTriggerTiming(unsigned int trigger_type, unsigned int start_time, unsign
 void SetACContactor(unsigned int contactor_state) {}
 void SetHVContactor(unsigned int contactor_state) {}
 void SetGUNContactor(unsigned int contactor_state) {}
-void DisableTriggers(void) {}
-void EnableTriggers(void) {}
 unsigned int CheckXRayOn(void) {
   return 0;
 }
@@ -305,7 +303,8 @@ void DoStateMachine(void) {
 	to verify it's state and all of the contact outputs make sense
       */
 
-      global_data_A36507.control_state = STATE_WAITING_FOR_POWER_ON;
+      //global_data_A36507.control_state = STATE_WAITING_FOR_POWER_ON;
+      global_data_A36507.control_state = STATE_XRAY_ON;
     }
     break;
     
@@ -566,17 +565,21 @@ void DoStateMachine(void) {
     SetHVContactor(CONTACTOR_CLOSED);
     SetGUNContactor(CONTACTOR_CLOSED);
     EnableTriggers();
+    SetTriggerTiming(TRIGGER_PFN_TRIGGER, 1, 500);
+    SetTriggerTiming(TRIGGER_MAGNETRON_I_SAMP, 200, 400);
+    SetTriggerTiming(TRIGGER_GRID_TRIGGER, 200, 400);
+    SetTriggerTiming(TRIGGER_SPARE, 2, 502);
     global_data_A36507.high_voltage_on_fault_counter = 0;
     while (global_data_A36507.control_state == STATE_XRAY_ON) {
       DoA36507();
       if (CheckXRayOn() == 0) {
-	global_data_A36507.control_state = STATE_READY;
+	//global_data_A36507.control_state = STATE_READY;
       }
       if (BEAM_ENABLE_INPUT == ILL_BEAM_DISABLED) {
-	global_data_A36507.control_state = STATE_READY;
+	//global_data_A36507.control_state = STATE_READY;
       }
       if (CheckHVOnFault()) {
-	global_data_A36507.control_state = STATE_FAULT_HOLD;
+	//global_data_A36507.control_state = STATE_FAULT_HOLD;
       }
     }
     break;
@@ -1542,6 +1545,15 @@ ETMAnalogInputInitialize(&analog_5V_vmon,
 
   TCPmodbus_init(&ip_config);
 #endif
+
+
+  // Initialize all of the output compare modules.
+#define OCxCON_VALUE   0b0000000000000100 // TMR2, Single Output Pulse
+
+
+  T2CON = T2CON_VALUE;
+  PR2   = 0xFFFF;
+  TMR2  = 0;
   
   //ETMLinacModbusInitialize();
   
@@ -2537,51 +2549,109 @@ void LoadConfig(unsigned int source) {
 
 #define OPERATION_MODE_SINGLE_ENERGY   1
 
+
+
+#define T2_CHARGE_TIME   42000 //2.1mS
+#define T2_HOLDOFF_100US  2000
+
+
 // External Trigger
 void __attribute__((interrupt, shadow, no_auto_psv)) _INT1Interrupt(void) {
   unsigned int next_dose_level;
-  
-  if (mode_select_internal_trigger == 1) {
-    if (PIN_TRIGGER_IN == ILL_TRIGGER_ACTIVE) {
-      // The Trigger Pulse is Valid
-      if (_T4IF) {
-	// The minimum period between pulses has passed
-	if (global_data_A36507.control_state == STATE_XRAY_ON) {
-	  T2CONbits.TON = 1; 	// Start the triggers
-	}
-	TMR4 = 0;
-	_T4IF = 0;
 
+  if (mode_select_internal_trigger == 0) {
+    if (_INT1EP) {
+      // This was a negative going edge transistion
+      // Start Charging the power supply
+      // Start the power supply timer
+      T2CON = T2CON_VALUE_TIMER_ON_SCALE_1_1;
+      TMR2  = 0;
+      PR2   = T2_CHARGE_TIME;
+      _T2IF  = 0;
+      _T2IE  = 1;
+      _INT1IE = 0;
+      PIN_HVPS_INHIBIT = !OLL_INHIBIT_HVPS;
+    } else {
+      // This was a positive going edge transistion
+      // Start the triggers
+      // Wait for 100uS
+      // Enable negative trigger detection
+      
+      if (PIN_TRIGGER_IN == ILL_TRIGGER_ACTIVE) {
+	// The Trigger Pulse is Valid
+	T2CONbits.TON = 0;
+	if (global_data_A36507.control_state == STATE_XRAY_ON) {
+	  // Enable all of the triggers
+	  OC1CON = OCxCON_VALUE;
+	  OC2CON = OCxCON_VALUE;
+	  // OC3CON = OCxCON_VALUE;  THE HVPS is Managed by something else
+	  OC4CON = OCxCON_VALUE;
+	  OC5CON = OCxCON_VALUE;
+	  OC6CON = OCxCON_VALUE;
+	  OC7CON = OCxCON_VALUE;
+	  OC8CON = OCxCON_VALUE;
+	}
+	TMR2 = 0;
+	T2CONbits.TON = 1;
+	PR2 = T2_HOLDOFF_100US;
+	_T2IE = 0;
+	_T2IF = 0;
+	// DPARKER - Measure the Period
+	
 	// Figure out the next dose level
 	next_dose_level = (global_data_A36507.dose_level^0x0001);
 	if (global_data_A36507.single_dual_energy_mode_selection == OPERATION_MODE_SINGLE_ENERGY) {
 	  next_dose_level = global_data_A36507.dose_level;
 	}
 	global_data_A36507.dose_level = next_dose_level;
-
 	SetDoseLevelTiming();
+	
+	while(!_T2IF) {} // Wait for Holdoff Period
+	if (PIN_TRIGGER_IN != ILL_TRIGGER_ACTIVE) {
+	  fault_data.trigger_width_too_short_count++;
+	}
+	_INT1IE = 0;
+	_INT1EP = 1;  // Negative Transition
+	_INT1IE = 1;
       } else {
-	fault_data.trigger_period_too_short_count++;
+	fault_data.trigger_not_valid_count++;
       }
-    } else {
-      fault_data.trigger_width_too_short_count++;
     }
   } else {
     fault_data.external_trigger_when_internal_selected_count++;
   }
+  _INT1IF  = 0;
 }
 
-void DoPostTriggerProcess(void) {
-    // Set the timing registers for dose level
 
+void __attribute__((interrupt, no_auto_psv)) _T2Interrupt(void) {
+  // PFN Charge Should be completed
+  // Inhibit the Lambda
+  // Wait 100uS
+  // Enable the Trigger
+  PIN_HVPS_INHIBIT = OLL_INHIBIT_HVPS;
+  TMR2 = 0;
+  PR2  = T2_HOLDOFF_100US;
+  _T2IF = 0;
+  while (!_T2IF) {}
   
+  _INT1EP  = 0; // Positive Transition Triggers
+  _INT1IF  = 0; 
+  _INT1IE = 1;
+  _T2IE = 0;
+}
+
+
+
+
+void DoPostTriggerProcess(void) {
+  // Set up the event Log
 }
 
 #define TRIGGER_STOP_TIME 400 // 20uS
 
 void SetAllLevelTiming(void) {
   SetTriggerTiming(TRIGGER_PFN_TRIGGER, local_pulse_sync_pfn_trig_dose_all, TRIGGER_STOP_TIME);
-  SetTriggerTiming(TRIGGER_HVPS_INHIBIT, local_pulse_sync_hvps_trig_start_dose_all, TRIGGER_STOP_TIME);
   SetTriggerTiming(TRIGGER_MAGNETRON_I_SAMP, local_pulse_sync_pulse_mon_trig_start_dose_all, TRIGGER_STOP_TIME);
   SetTriggerTiming(TRIGGER_TARGET_I_SAMP, local_pulse_sync_pulse_mon_trig_start_dose_all, TRIGGER_STOP_TIME);
   SetTriggerTiming(TRIGGER_BALANCED_OUT_1, 0, TRIGGER_STOP_TIME);
@@ -2670,6 +2740,39 @@ void SetTriggerTiming(unsigned int trigger_type, unsigned int start_time, unsign
 
 
 
+void DisableTriggers(void) {
+  // DPARKER check state and fault out if this called from state X-Ray on
+
+  OC1CON = 0;
+  OC2CON = 0;
+  OC3CON = 0;
+  OC4CON = 0;
+  OC5CON = 0;
+  OC6CON = 0;
+  OC7CON = 0;
+  OC8CON = 0;
+
+  PIN_GRID_TRIGGER = 0;
+  PIN_PFN_TRIGGER = 0;
+  PIN_HVPS_INHIBIT = 1;
+  PIN_MAGNETRON_CURRENT_SAMPLE = 0;
+  PIN_AFC_SAMPLE = 0;
+  PIN_TARGET_CURRENT_SAMPLE = 0;
+  PIN_SPARE_TRIGGER = 0;
+  PIN_BALANCED_OUT_1 = 0;
+}
+
+
+
+void EnableTriggers(void) {
+  _T2IE   = 0;
+  _T2IF   = 0;
+  _T2IP   = 5;
+  _INT1EP = 0;  // Positive Transition
+  _INT1IF = 0;
+  _INT1IP = 6;
+  _INT1IE = 1;
+}
 
 
 

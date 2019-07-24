@@ -207,6 +207,15 @@ typedef struct {
   RC14 - AC Contactor Enable
   RC15 - LED GRN TEST POINT B
 
+
+  RD0  -  OC1 - GRID TRIGGER
+  RD1  -  OC2 - PFN TRIGGER
+  RD2  -  OC3 - HVPS INHIBIT
+  RD3  -  OC4 - MAGNETRON CURRENT SAMPLE
+  RD4  -  OC5 - AFC SAMPLE
+  RD5  -  OC6 - TARGET CURRENT SAMPLE
+  RD6  -  OC7 - SPARE TRIGGER
+  RD7  -  OC8 - BALANCED OUT 1
   RD11 - Gun Contactor Enable
   RD14 - GRID STOP PROG EN
   RD15 - GRID START PROG EN
@@ -218,6 +227,11 @@ typedef struct {
   RG12 - PIC EXT 24V ENABLE
   RG13 - PIC LAMP OUT SPARE 2
   RG14 - PIC LAMP OUT X-RAY ON
+
+
+
+
+
 */
 
 // ----------------- DIGITAL INPUT PINS --------------- //
@@ -247,7 +261,7 @@ typedef struct {
 #define A37780_TRISA_VALUE 0b1111100100111111
 #define A37780_TRISB_VALUE 0b0000000100111111
 #define A37780_TRISC_VALUE 0b0001111111111111
-#define A37780_TRISD_VALUE 0b0011011111111111
+#define A37780_TRISD_VALUE 0b0011011100000000
 #define A37780_TRISF_VALUE 0b1111111111111111
 #define A37780_TRISG_VALUE 0b1000110111111010
 
@@ -335,18 +349,17 @@ typedef struct {
 
 
 
+#define PIN_GRID_TRIGGER                       _LATD0
+#define PIN_PFN_TRIGGER                        _LATD1
+#define PIN_HVPS_INHIBIT                       _LATD2
+#define PIN_MAGNETRON_CURRENT_SAMPLE           _LATD3
+#define PIN_AFC_SAMPLE                         _LATD4
+#define PIN_TARGET_CURRENT_SAMPLE              _LATD5
+#define PIN_SPARE_TRIGGER                      _LATD6
+#define PIN_BALANCED_OUT_1                     _LATD7
 
 
-
-
-
-
-
-
-
-
-
-
+#define OLL_INHIBIT_HVPS                       1
 
 
 
@@ -372,7 +385,10 @@ typedef struct {
 
 
 // --------------- CONFIGURE TMR2 MODULE ----------------------- //
-#define T2CON_VALUE                    (T2_ON & T2_IDLE_CON & T2_GATE_OFF & T2_PS_1_1 & T2_32BIT_MODE_OFF & T2_SOURCE_INT)
+#define T2CON_VALUE                    (T2_OFF & T2_IDLE_CON & T2_GATE_OFF & T2_PS_1_1 & T2_32BIT_MODE_OFF & T2_SOURCE_INT)
+
+#define T2CON_VALUE_TIMER_ON_SCALE_1_1  (T2_ON & T2_IDLE_CON & T2_GATE_OFF & T2_PS_1_1 & T2_32BIT_MODE_OFF & T2_SOURCE_INT)
+#define T2CON_VALUE_TIMER_OFF_SCALE_1_1 (T2_OFF & T2_IDLE_CON & T2_GATE_OFF & T2_PS_1_1 & T2_32BIT_MODE_OFF & T2_SOURCE_INT)
 
 
 // ------------------------ CONFIGURE ADC MODULE ------------------- //
@@ -474,6 +490,7 @@ typedef struct {
 typedef struct {
   unsigned int trigger_period_too_short_count;
   unsigned int trigger_width_too_short_count;
+  unsigned int trigger_not_valid_count;
   unsigned int external_trigger_when_internal_selected_count;
 } FAULTVars;
 
