@@ -6,6 +6,32 @@
 #include "ETM_TICK.h"
 
 
+void GridDelayTrim(unsigned int start_trim, unsigned int stop_trim);
+
+void MCP23S18Setup(unsigned long pin_chip_select_not,
+		   unsigned char spi_port,
+		   unsigned long fcy_clk,
+		   unsigned long spi_bit_rate);
+/*
+  Setup the MCP for use
+  Default Configuration to the IO Expander,
+  BANK=0, All Inputs, No Inversion
+*/
+
+
+unsigned long MCP23S18ReadInputs(void);
+/*
+  Returns the port vaules for portA and portB
+  High Byte = PortA
+  Low Byte  = PortB
+*/
+
+unsigned long mcp23S18_pin_chip_select_not;
+unsigned char mcp23S18_spi_port;
+
+
+
+
 
 unsigned int mode_select_internal_trigger;  // DPARKER create structure for run time configuration parameters
 
@@ -1466,6 +1492,20 @@ ETMAnalogInputInitialize(&analog_5V_vmon,
 
   
   ETMTickInitialize(FCY_CLK, ETM_TICK_USE_TIMER_1);
+
+
+  MCP23S18Setup(_PIN_RC2,
+		ETM_SPI_PORT_2,
+		FCY_CLK,
+		SPI_CLK_1_MBIT);
+
+  unsigned long expander_data;
+  expander_data = MCP23S18ReadInputs();
+
+  Nop();
+  Nop();
+  Nop();
+  
   
   ETMEEPromUseSPI();
   ETMEEPromConfigureSPIDevice(EEPROM_SIZE_8K_BYTES,
@@ -2609,7 +2649,7 @@ void __attribute__((interrupt, shadow, no_auto_psv)) _INT1Interrupt(void) {
 	}
 	global_data_A36507.dose_level = next_dose_level;
 	SetDoseLevelTiming();
-	
+
 	while(!_T2IF) {} // Wait for Holdoff Period
 	if (PIN_TRIGGER_IN != ILL_TRIGGER_ACTIVE) {
 	  fault_data.trigger_width_too_short_count++;
@@ -2688,6 +2728,49 @@ void SetDoseLevelTiming(void) {
 }
 
 
+
+void GridDelayTrim(unsigned int start_trim, unsigned int stop_trim) {
+  // Program the start_trim
+  unsigned int n;
+  
+  PIN_OUT_DELAY_PGM_CLK = 0;
+
+
+  PIN_OUT_GRID_START_PROG_EN = 1;
+  for (n = 0; n < 8; n++) {
+    // Shift out a bit
+    if (start_trim & 0x0080) {
+      PIN_OUT_DELAY_PGM_DO = 1;
+    } else {
+      PIN_OUT_DELAY_PGM_DO = 0;
+    }
+    PIN_OUT_DELAY_PGM_CLK = 1;
+    start_trim <<= 1;
+    PIN_OUT_DELAY_PGM_CLK = 0;
+  }
+  PIN_OUT_GRID_START_PROG_EN = 0;
+
+
+  PIN_OUT_GRID_STOP_PROG_EN = 1;
+  for (n = 0; n < 8; n++) {
+    // Shift out a bit
+    if (stop_trim & 0x0080) {
+      PIN_OUT_DELAY_PGM_DO = 1;
+    } else {
+      PIN_OUT_DELAY_PGM_DO = 0;
+    }
+    PIN_OUT_DELAY_PGM_CLK = 1;
+    stop_trim <<= 1;
+    PIN_OUT_DELAY_PGM_CLK = 0;
+  }
+  PIN_OUT_GRID_STOP_PROG_EN = 0;
+  
+
+}
+
+
+
+
 void SetTriggerTiming(unsigned int trigger_type, unsigned int start_time, unsigned int stop_time) {
   // DPARKER - error check start and stop time relative to each other and maximums to guarantee they happen
 
@@ -2696,6 +2779,14 @@ void SetTriggerTiming(unsigned int trigger_type, unsigned int start_time, unsign
   case TRIGGER_GRID_TRIGGER:
     OC1R  = start_time;
     OC1RS = stop_time;
+
+    // DPARKER - delay start by 100 units
+    // DPARKER - delay stop by 200 units
+
+    GridDelayTrim(100, 200);
+
+
+    
     // DPARKER - MORE WORK TO DO WITH THIS TRIGGER
     // MAY NEED TO ADD DYNAMIC DOSE HERE
     // ADD writing to the delay Lines
@@ -2857,3 +2948,112 @@ unsigned int ETMEEPromPrivateReadStatusSPITest() {
 }
 
 */
+
+
+
+
+void MCP23S18Setup(unsigned long pin_chip_select_not,
+		   unsigned char spi_port,
+		   unsigned long fcy_clk,
+		   unsigned long spi_bit_rate) {
+
+  mcp23S18_pin_chip_select_not = pin_chip_select_not;
+  mcp23S18_spi_port            = spi_port;
+
+  ETMSetPin(mcp23S18_pin_chip_select_not);
+  ETMPinTrisOutput(mcp23S18_pin_chip_select_not);
+  
+  ConfigureSPI(mcp23S18_spi_port,
+	       ETM_DEFAULT_SPI_CON_VALUE,
+	       ETM_DEFAULT_SPI_CON2_VALUE,
+	       ETM_DEFAULT_SPI_STAT_VALUE,
+	       spi_bit_rate,
+	       fcy_clk);
+
+  // IOCON is set up how we want it at power on
+}
+
+
+#define OP_CODE_ADDRESS_PORT_DATA_READ  0b0100000100000000
+
+
+#define OP_CODE_DATA_READ               0b01000001
+
+unsigned long MCP23S18ReadInputs(void) {
+  unsigned long temp[30];
+
+
+
+    // FORCE 8 Bit MODE command word
+  if (mcp23S18_spi_port == ETM_SPI_PORT_1) {
+    SPI1CONbits.MODE16 = 0;
+  } else {
+    SPI2CONbits.MODE16 = 0;
+    //SPI2CONbits.CKP = 1;  // Nominally 0
+    //SPI2CONbits.CKE = 1;  // Nomianlly 1
+  }
+
+  ETMClearPin(mcp23S18_pin_chip_select_not);
+  /*
+  temp[0] = SendAndReceiveSPI(OP_CODE_ADDRESS_PORT_DATA_READ, mcp23S18_spi_port);  // Send out the op code and address
+  temp[1] = SendAndReceiveSPI(0, mcp23S18_spi_port);                          // Read the port data
+  temp[2] = SendAndReceiveSPI(0, mcp23S18_spi_port);                          // Read the port data
+  temp[3] = SendAndReceiveSPI(0, mcp23S18_spi_port);                          // Read the port data
+  temp[4] = SendAndReceiveSPI(0, mcp23S18_spi_port);                          // Read the port data
+  temp[5] = SendAndReceiveSPI(0, mcp23S18_spi_port);                          // Read the port data
+  temp[6] = SendAndReceiveSPI(0, mcp23S18_spi_port);                          // Read the port data
+  temp[7] = SendAndReceiveSPI(0, mcp23S18_spi_port);                          // Read the port data
+  */
+
+  temp[0] = SendAndReceiveSPI(OP_CODE_DATA_READ, mcp23S18_spi_port);
+  temp[1] = SendAndReceiveSPI(0, mcp23S18_spi_port);
+  temp[2] = SendAndReceiveSPI(0, mcp23S18_spi_port);
+  temp[3] = SendAndReceiveSPI(0, mcp23S18_spi_port);
+  temp[4] = SendAndReceiveSPI(0, mcp23S18_spi_port);
+  temp[5] = SendAndReceiveSPI(0, mcp23S18_spi_port);
+  temp[6] = SendAndReceiveSPI(0, mcp23S18_spi_port);
+  temp[7] = SendAndReceiveSPI(0, mcp23S18_spi_port);
+  temp[8] = SendAndReceiveSPI(0, mcp23S18_spi_port);
+  temp[9] = SendAndReceiveSPI(0, mcp23S18_spi_port);
+  temp[10] = SendAndReceiveSPI(0, mcp23S18_spi_port);
+  temp[11] = SendAndReceiveSPI(0, mcp23S18_spi_port);
+  temp[12] = SendAndReceiveSPI(0, mcp23S18_spi_port);
+  temp[13] = SendAndReceiveSPI(0, mcp23S18_spi_port);
+  temp[14] = SendAndReceiveSPI(0, mcp23S18_spi_port);
+  temp[15] = SendAndReceiveSPI(0, mcp23S18_spi_port);
+  temp[16] = SendAndReceiveSPI(0, mcp23S18_spi_port);
+  temp[17] = SendAndReceiveSPI(0, mcp23S18_spi_port);
+  temp[18] = SendAndReceiveSPI(0, mcp23S18_spi_port);
+  temp[19] = SendAndReceiveSPI(0, mcp23S18_spi_port);
+  temp[20] = SendAndReceiveSPI(0, mcp23S18_spi_port);
+  temp[21] = SendAndReceiveSPI(0, mcp23S18_spi_port);
+  temp[22] = SendAndReceiveSPI(0, mcp23S18_spi_port);
+  temp[23] = SendAndReceiveSPI(0, mcp23S18_spi_port);
+  temp[24] = SendAndReceiveSPI(0, mcp23S18_spi_port);
+  temp[25] = SendAndReceiveSPI(0, mcp23S18_spi_port);
+  temp[26] = SendAndReceiveSPI(0, mcp23S18_spi_port);
+  temp[27] = SendAndReceiveSPI(0, mcp23S18_spi_port);
+  temp[28] = SendAndReceiveSPI(0, mcp23S18_spi_port);
+  temp[29] = SendAndReceiveSPI(0, mcp23S18_spi_port);  
+  
+
+  ETMSetPin(mcp23S18_pin_chip_select_not);
+
+
+  // Switch back to 16 bit mode
+  if (mcp23S18_spi_port == ETM_SPI_PORT_1) {
+    SPI1CONbits.MODE16 = 1;
+  } else {
+    SPI2CONbits.MODE16 = 1;
+  }
+
+  
+  Nop();
+  Nop();
+  Nop();
+  Nop();
+
+
+  
+  return temp[0];
+}
