@@ -4,12 +4,8 @@
     <logicalFolder name="HeaderFiles"
                    displayName="Header Files"
                    projectFiles="true">
-      <itemPath>A36507.h</itemPath>
-      <itemPath>A36507_CONFIG.h</itemPath>
-      <itemPath>ETM_LINAC_MODBUS.h</itemPath>
+      <itemPath>A37780_CONFIG.h</itemPath>
       <itemPath>FIRMWARE_VERSION.h</itemPath>
-      <itemPath>P1395_CAN_CORE.h</itemPath>
-      <itemPath>P1395_CAN_MASTER.h</itemPath>
     </logicalFolder>
     <logicalFolder name="LinkerScript"
                    displayName="Linker Files"

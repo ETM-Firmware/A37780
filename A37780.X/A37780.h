@@ -1,5 +1,5 @@
-#ifndef __A36507_H
-#define __A36507_H
+#ifndef __A37780_H
+#define __A37780_H
 
 #include <xc.h>
 #include <libpic30.h>
@@ -484,7 +484,7 @@ typedef struct {
 
   unsigned int single_dual_energy_mode_selection;
   
-} A36507GlobalVars;
+} A37780GlobalVars;
 
 
 typedef struct {
@@ -495,7 +495,7 @@ typedef struct {
 } FAULTVars;
 
 
-#define ECB_COUNTER_AND_TIMERS_RAM_POINTER (((unsigned int*)(&global_data_A36507.pulse_counter_48_bit)) + 1)
+#define ECB_COUNTER_AND_TIMERS_RAM_POINTER (((unsigned int*)(&global_data_A37780.pulse_counter_48_bit)) + 1)
 #define average_output_power_watts                           local_data_ecb.log_data[14]
 
 
@@ -517,7 +517,7 @@ typedef struct {
 
 
 
-extern A36507GlobalVars global_data_A36507;
+extern A37780GlobalVars global_data_A37780;
 
 
 #define _FAULT_X_RAY_ON_LOGIC_ERROR                     _FAULT_0
