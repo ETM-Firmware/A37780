@@ -1,476 +1,331 @@
 #ifndef __P1395_CAN_MASTER_H
 #define __P1395_CAN_MASTER_H
 
-#include "P1395_CAN_CORE.h"
 
-//#define __IGNORE_ION_PUMP_MODULE
-//#define __IGNORE_AFC_MODULE
-//#define __IGNORE_GUN_DRIVER_MODULE
-//#define __IGNORE_COOLING_INTERFACE_MODULE
-//#define __IGNORE_HEATER_MAGNET_MODULE
-//#define __IGNORE_HV_LAMBDA_MODULE
-//#define __IGNORE_PULSE_CURRENT_MODULE
-//#define __IGNORE_PULSE_SYNC_MODULE
-#define __IGNORE_TCU
-
-
-
-
-
-typedef struct {
-  unsigned unused_0:1;
-  unsigned ion_pump_board:1;
-  unsigned magnetron_current_board:1;
-  unsigned pulse_sync_board:1;
-  unsigned hv_lambda_board:1;
-  unsigned afc_board:1;
-  unsigned cooling_interface_board:1;
-  unsigned heater_magnet_board:1;
-  unsigned gun_driver_board:1;
-  unsigned unused_9:1;
-  unsigned unused_10:1;
-  unsigned unused_11:1;
-  unsigned unused_12:1;
-  unsigned unused_13:1;
-  unsigned ethernet_board:1;
-  unsigned unused_15:1;
-} P1395BoardBits;
-
-extern P1395BoardBits board_status_received;
-extern P1395BoardBits board_com_ok;
-
-
-typedef struct {
-  unsigned high_energy_pulse:1;
-  unsigned arc_this_pulse:1;
-  unsigned tbd_2:1;
-  unsigned tbd_3:1;
-
-  unsigned tbd_4:1;
-  unsigned tbd_5:1;
-  unsigned tbd_6:1;
-  unsigned tbd_7:1;
-
-  unsigned tbd_8:1;
-  unsigned tbd_9:1;
-  unsigned tbd_A:1;
-  unsigned tbd_B:1;
-
-  unsigned tbd_C:1;
-  unsigned tbd_D:1;
-  unsigned tbd_E:1;
-  unsigned tbd_F:1;
-} HighSpeedLogStatusBits;
-
-typedef struct {
-  unsigned int pulse_count;
-  HighSpeedLogStatusBits status_bits; //This will contain high_low_energy?, arc_this_pulse?, what else???
-  
-  unsigned int x_ray_on_seconds_lsw;  // This is the lsw of x_ray_on_seconds, when the ECB recieved the "next pulse level" command
-  unsigned int x_ray_on_milliseconds; // This is a representation of the milliseconds, when the ECB recieved the "next pulse level" command
-
-  unsigned int hvlambda_vmon_at_eoc_period;  //unsigned int hvlambda_readback_high_energy_lambda_program_voltage;
-  unsigned int hvlambda_vmon_at_trigger; //unsigned int hvlambda_readback_low_energy_lambda_program_voltage;
-  unsigned int hvlambda_vpeak_at_eoc_period; //unsigned int hvlambda_readback_peak_lambda_voltage;
-
-  unsigned int afc_readback_current_position;
-  unsigned int afc_readback_target_position;
-  unsigned int afc_readback_a_input;
-  unsigned int afc_readback_b_input;
-  unsigned int afc_readback_filtered_error_reading;
-
-  unsigned int ionpump_readback_high_energy_target_current_reading;
-  unsigned int ionpump_readback_low_energy_target_current_reading;
-
-  unsigned int magmon_internal_adc_reading;
-  unsigned int magmon_external_adc_reading;
-
-  unsigned int psync_trigger_width_and_filtered_trigger_width;
-  unsigned int psync_grid_width_and_delay;  //unsigned int psync_readback_high_energy_grid_width_and_delay;
-  unsigned int psync_period; //unsigned int psync_readback_low_energy_grid_width_and_delay;
-} ETMCanHighSpeedData;
-// 19 words
-
-
-extern ETMCanBoardData local_data_ecb;
-extern ETMCanBoardData mirror_hv_lambda;
-extern ETMCanBoardData mirror_ion_pump;
-extern ETMCanBoardData mirror_afc;
-extern ETMCanBoardData mirror_cooling;
-extern ETMCanBoardData mirror_htr_mag;
-extern ETMCanBoardData mirror_gun_drv;
-extern ETMCanBoardData mirror_pulse_mon;
-extern ETMCanBoardData mirror_pulse_sync;
-
-
-
-
-#define _CONTROL_NOT_READY            local_data_ecb.status.control_notice_bits.control_not_ready
-#define _CONTROL_NOT_CONFIGURED       local_data_ecb.status.control_notice_bits.control_not_configured
-#define _CONTROL_SELF_CHECK_ERROR     local_data_ecb.status.control_notice_bits.control_self_check_error
-
-
-#define _NOTICE_0                     local_data_ecb.status.control_notice_bits.notice_0
-#define _NOTICE_1                     local_data_ecb.status.control_notice_bits.notice_1
-#define _NOTICE_2                     local_data_ecb.status.control_notice_bits.notice_2
-#define _NOTICE_3                     local_data_ecb.status.control_notice_bits.notice_3
-#define _NOTICE_4                     local_data_ecb.status.control_notice_bits.notice_4
-#define _NOTICE_5                     local_data_ecb.status.control_notice_bits.notice_5
-#define _NOTICE_6                     local_data_ecb.status.control_notice_bits.notice_6
-#define _NOTICE_7                     local_data_ecb.status.control_notice_bits.notice_7
-
-#define _FAULT_0                      local_data_ecb.status.fault_bits.fault_0
-#define _FAULT_1                      local_data_ecb.status.fault_bits.fault_1
-#define _FAULT_2                      local_data_ecb.status.fault_bits.fault_2
-#define _FAULT_3                      local_data_ecb.status.fault_bits.fault_3
-#define _FAULT_4                      local_data_ecb.status.fault_bits.fault_4
-#define _FAULT_5                      local_data_ecb.status.fault_bits.fault_5
-#define _FAULT_6                      local_data_ecb.status.fault_bits.fault_6
-#define _FAULT_7                      local_data_ecb.status.fault_bits.fault_7
-#define _FAULT_8                      local_data_ecb.status.fault_bits.fault_8
-#define _FAULT_9                      local_data_ecb.status.fault_bits.fault_9
-#define _FAULT_A                      local_data_ecb.status.fault_bits.fault_A
-#define _FAULT_B                      local_data_ecb.status.fault_bits.fault_B
-#define _FAULT_C                      local_data_ecb.status.fault_bits.fault_C
-#define _FAULT_D                      local_data_ecb.status.fault_bits.fault_D
-#define _FAULT_E                      local_data_ecb.status.fault_bits.fault_E
-#define _FAULT_F                      local_data_ecb.status.fault_bits.fault_F
-
-#define _LOGGED_0                     local_data_ecb.status.warning_bits.warning_0
-#define _LOGGED_1                     local_data_ecb.status.warning_bits.warning_1
-#define _LOGGED_2                     local_data_ecb.status.warning_bits.warning_2
-#define _LOGGED_3                     local_data_ecb.status.warning_bits.warning_3
-#define _LOGGED_4                     local_data_ecb.status.warning_bits.warning_4
-#define _LOGGED_5                     local_data_ecb.status.warning_bits.warning_5
-#define _LOGGED_6                     local_data_ecb.status.warning_bits.warning_6
-#define _LOGGED_7                     local_data_ecb.status.warning_bits.warning_7
-#define _LOGGED_8                     local_data_ecb.status.warning_bits.warning_8
-#define _LOGGED_9                     local_data_ecb.status.warning_bits.warning_9
-#define _LOGGED_A                     local_data_ecb.status.warning_bits.warning_A
-#define _LOGGED_B                     local_data_ecb.status.warning_bits.warning_B
-#define _LOGGED_C                     local_data_ecb.status.warning_bits.warning_C
-#define _LOGGED_D                     local_data_ecb.status.warning_bits.warning_D
-#define _LOGGED_E                     local_data_ecb.status.warning_bits.warning_E
-#define _LOGGED_F                     local_data_ecb.status.warning_bits.warning_F
-
-#define _NOT_LOGGED_0                 local_data_ecb.status.not_logged_bits.not_logged_0
-#define _NOT_LOGGED_1                 local_data_ecb.status.not_logged_bits.not_logged_1
-#define _NOT_LOGGED_2                 local_data_ecb.status.not_logged_bits.not_logged_2
-#define _NOT_LOGGED_3                 local_data_ecb.status.not_logged_bits.not_logged_3
-#define _NOT_LOGGED_4                 local_data_ecb.status.not_logged_bits.not_logged_4
-#define _NOT_LOGGED_5                 local_data_ecb.status.not_logged_bits.not_logged_5
-#define _NOT_LOGGED_6                 local_data_ecb.status.not_logged_bits.not_logged_6
-#define _NOT_LOGGED_7                 local_data_ecb.status.not_logged_bits.not_logged_7
-#define _NOT_LOGGED_8                 local_data_ecb.status.not_logged_bits.not_logged_8
-#define _NOT_LOGGED_9                 local_data_ecb.status.not_logged_bits.not_logged_9
-#define _NOT_LOGGED_A                 local_data_ecb.status.not_logged_bits.not_logged_A
-#define _NOT_LOGGED_B                 local_data_ecb.status.not_logged_bits.not_logged_B
-#define _NOT_LOGGED_C                 local_data_ecb.status.not_logged_bits.not_logged_C
-#define _NOT_LOGGED_D                 local_data_ecb.status.not_logged_bits.not_logged_D
-#define _NOT_LOGGED_E                 local_data_ecb.status.not_logged_bits.not_logged_E
-#define _NOT_LOGGED_F                 local_data_ecb.status.not_logged_bits.not_logged_F
-
-#define _CONTROL_REGISTER             *(unsigned int*)&local_data_ecb.status.control_notice_bits
-#define _FAULT_REGISTER               *(unsigned int*)&local_data_ecb.status.fault_bits
-#define _WARNING_REGISTER             *(unsigned int*)&local_data_ecb.status.warning_bits
-#define _NOT_LOGGED_REGISTER          *(unsigned int*)&local_data_ecb.status.not_logged_bits
-
-
-
-// Board Configuration data - 0x06
-#define config_agile_number_high_word      local_data_ecb.config_data[3]
-#define config_agile_number_low_word       local_data_ecb.config_data[2]
-#define config_agile_dash                  local_data_ecb.config_data[1]
-#define config_agile_rev_ascii             local_data_ecb.config_data[0]
-
-// Board Configuration data - 0x07
-#define config_serial_number               local_data_ecb.config_data[7]
-#define config_firmware_agile_rev          local_data_ecb.config_data[6]
-#define config_firmware_branch             local_data_ecb.config_data[5]
-#define config_firmware_branch_rev         local_data_ecb.config_data[4]
-
-
-
-
-
-
-#define mirror_ecb_control_state                        local_data_ecb.board_data[0]
-#define mirror_ecb_avg_output_power_watts               local_data_ecb.board_data[1]
-#define mirror_ecb_thyratron_warmup_remaining           local_data_ecb.board_data[2]
-#define mirror_ecb_magnetron_warmup_remaining           local_data_ecb.board_data[3]
-#define mirror_ecb_gun_driver_warmup_remaining          local_data_ecb.board_data[4]
-//#define mirror_board_com_fault                          local_data_ecb.board_data[5]
-#define mirror_ecb_time_now_seconds // 6,7long          
-#define mirror_ecb_system_power_seconds  // 8,9 long
-#define mirror_ecb_system_hv_on_seconds  // 10,11 long
-#define mirror_ecb_system_xray_on_seconds // 12,13 long
-
-
-
-
-
-
-
-
-
-
-extern ETMCanBoardDebuggingData debug_data_ecb;
-extern ETMCanBoardDebuggingData debug_data_slave_mirror;
-
-
-// This "defines" data that may need to be displayed on the GUI
-#define local_hvps_set_point_dose_0                     mirror_hv_lambda.local_data[0]
-#define local_hvps_set_point_dose_1                     mirror_hv_lambda.local_data[1]
-
-#define local_afc_home_position_dose_0                  mirror_afc.local_data[0]
-#define local_afc_home_position_dose_1                  mirror_afc.local_data[3]
-#define local_afc_aft_control_voltage_dose_all          mirror_afc.local_data[1]
-
-
-#define local_magnetron_heater_current_dose_all         mirror_htr_mag.local_data[0]
-#define local_heater_current_scaled_set_point           mirror_htr_mag.local_data[1]
-#define local_magnet_current_set_point_dose_0           mirror_htr_mag.local_data[2]
-#define local_magnet_current_set_point_dose_1           mirror_htr_mag.local_data[3]
-
-#define local_gun_drv_top_v_dose_0                      mirror_gun_drv.local_data[0]
-#define local_gun_drv_top_v_dose_1                      mirror_gun_drv.local_data[1]
-#define local_gun_drv_heater_v_dose_all                 mirror_gun_drv.local_data[2]
-#define local_gun_drv_cathode_v_dose_0                  mirror_gun_drv.local_data[3]
-#define local_gun_drv_cathode_v_dose_1                  mirror_gun_drv.local_data[4]  // This is loaded but unused by anything at this point in time
-
-
-/*
-#define psync_grid_start_high_intensity_3               *(unsigned char*)&mirror_pulse_sync.local_data[0]
-#define psync_grid_start_high_intensity_2               *((unsigned char*)&mirror_pulse_sync.local_data[0] + 1)
-#define psync_grid_start_high_intensity_1               *(unsigned char*)&mirror_pulse_sync.local_data[1]
-#define psync_grid_start_high_intensity_0               *((unsigned char*)&mirror_pulse_sync.local_data[1] + 1)
-#define psync_dose_delay_high                           *(unsigned char*)&mirror_pulse_sync.local_data[2]
-#define psync_pfn_delay_high                            *((unsigned char*)&mirror_pulse_sync.local_data[2] + 1)
-
-#define psync_grid_stop_high_intensity_3                *(unsigned char*)&mirror_pulse_sync.local_data[4]
-#define psync_grid_stop_high_intensity_2                *((unsigned char*)&mirror_pulse_sync.local_data[4] + 1)
-#define psync_grid_stop_high_intensity_1                *(unsigned char*)&mirror_pulse_sync.local_data[5]
-#define psync_grid_stop_high_intensity_0                *((unsigned char*)&mirror_pulse_sync.local_data[5] + 1)
-#define psync_mag_delay_high                            *(unsigned char*)&mirror_pulse_sync.local_data[6]
-#define psync_afc_delay_high                            *((unsigned char*)&mirror_pulse_sync.local_data[6] + 1)
-
-#define psync_grid_start_low_intensity_3                *(unsigned char*)&mirror_pulse_sync.local_data[8]
-#define psync_grid_start_low_intensity_2                *((unsigned char*)&mirror_pulse_sync.local_data[8] + 1)
-#define psync_grid_start_low_intensity_1                *(unsigned char*)&mirror_pulse_sync.local_data[9]
-#define psync_grid_start_low_intensity_0                *((unsigned char*)&mirror_pulse_sync.local_data[9] + 1)
-#define psync_dose_delay_low                            *(unsigned char*)&mirror_pulse_sync.local_data[10]
-#define psync_pfn_delay_low                             *((unsigned char*)&mirror_pulse_sync.local_data[10] + 1)
-
-#define psync_grid_stop_low_intensity_3                 *(unsigned char*)&mirror_pulse_sync.local_data[12]
-#define psync_grid_stop_low_intensity_2                 *((unsigned char*)&mirror_pulse_sync.local_data[12] + 1)
-#define psync_grid_stop_low_intensity_1                 *(unsigned char*)&mirror_pulse_sync.local_data[13]
-#define psync_grid_stop_low_intensity_0                 *((unsigned char*)&mirror_pulse_sync.local_data[13] + 1)
-#define psync_mag_delay_low                             *(unsigned char*)&mirror_pulse_sync.local_data[14]
-#define psync_afc_delay_low                             *((unsigned char*)&mirror_pulse_sync.local_data[14] + 1)
-*/
-
-
-#define local_pulse_sync_gun_trig_start_max_dose_0     mirror_pulse_sync.local_data[0]
-#define local_pulse_sync_gun_trig_stop_max_dose_0      mirror_pulse_sync.local_data[1]
-#define local_pulse_sync_gun_trig_start_max_dose_1     mirror_pulse_sync.local_data[2]
-#define local_pulse_sync_gun_trig_stop_max_dose_1      mirror_pulse_sync.local_data[3]
-
-#define local_pulse_sync_afc_trig_dose_0               mirror_pulse_sync.local_data[4]
-#define local_pulse_sync_afc_trig_dose_1               mirror_pulse_sync.local_data[5]
-
-#define local_pulse_sync_hvps_trig_start_dose_all      mirror_pulse_sync.local_data[8]
-#define local_pulse_sync_pfn_trig_dose_all             mirror_pulse_sync.local_data[9]
-#define local_pulse_sync_pulse_mon_trig_start_dose_all mirror_pulse_sync.local_data[10]
-
-
-#define _HV_LAMBDA_NOT_READY               mirror_hv_lambda.status.control_notice_bits.control_not_ready
-#define _HV_LAMBDA_NOT_CONFIGURED          mirror_hv_lambda.status.control_notice_bits.control_not_configured
-#define _HV_LAMBDA_FAULT_REGISTER          *(unsigned int*)&mirror_hv_lambda.status.fault_bits
-
-#define _ION_PUMP_NOT_READY                mirror_ion_pump.status.control_notice_bits.control_not_ready
-#define _ION_PUMP_NOT_CONFIGURED           mirror_ion_pump.status.control_notice_bits.control_not_configured
-#define _ION_PUMP_FAULT_REGISTER           *(unsigned int*)&mirror_ion_pump.status.fault_bits
-#define _ION_PUMP_OVER_CURRENT_ACTIVE      mirror_ion_pump.status.warning_bits.warning_0
-
-#define _AFC_NOT_READY                     mirror_afc.status.control_notice_bits.control_not_ready
-#define _AFC_NOT_CONFIGURED                mirror_afc.status.control_notice_bits.control_not_configured
-#define _AFC_FAULT_REGISTER                *(unsigned int*)&mirror_afc.status.fault_bits
-
-#define _COOLING_NOT_READY                 mirror_cooling.status.control_notice_bits.control_not_ready
-#define _COOLING_NOT_CONFIGURED            mirror_cooling.status.control_notice_bits.control_not_configured
-#define _COOLING_FLOW_OK                   mirror_cooling.status.warning_bits.warning_6
-#define _COOLING_FAULT_REGISTER            *(unsigned int*)&mirror_cooling.status.fault_bits
-
-#define _HEATER_MAGNET_NOT_READY           mirror_htr_mag.status.control_notice_bits.control_not_ready
-#define _HEATER_MAGNET_NOT_CONFIGURED      mirror_htr_mag.status.control_notice_bits.control_not_configured
-#define _HEATER_MAGNET_HEATER_OK           mirror_htr_mag.status.warning_bits.warning_1
-#define _HEATER_MAGNET_FAULT_REGISTER      *(unsigned int*)&mirror_htr_mag.status.fault_bits
-
-#define _GUN_DRIVER_NOT_READY              mirror_gun_drv.status.control_notice_bits.control_not_ready
-#define _GUN_DRIVER_NOT_CONFIGURED         mirror_gun_drv.status.control_notice_bits.control_not_configured
-#define _GUN_DRIVER_HEATER_RAMP_COMPLETE   mirror_gun_drv.status.warning_bits.warning_5
-#define _GUN_DRIVER_FAULT_REGISTER         *(unsigned int*)&mirror_gun_drv.status.fault_bits
-
-#define _PULSE_MON_NOT_READY               mirror_pulse_mon.status.control_notice_bits.control_not_ready
-#define _PULSE_MON_NOT_CONFIGURED          mirror_pulse_mon.status.control_notice_bits.control_not_configured
-#define _PULSE_MON_FAULT_REGISTER          *(unsigned int*)&mirror_pulse_mon.status.fault_bits
-#define _PULSE_MON_FALSE_TRIGGER           mirror_pulse_mon.status.fault_bits.fault_4
-
-#define _PULSE_SYNC_NOT_READY              mirror_pulse_sync.status.control_notice_bits.control_not_ready
-#define _PULSE_SYNC_NOT_CONFIGURED         mirror_pulse_sync.status.control_notice_bits.control_not_configured
-#define _PULSE_SYNC_CUSTOMER_HV_OFF        mirror_pulse_sync.status.warning_bits.warning_0
-#define _PULSE_SYNC_CUSTOMER_XRAY_OFF      mirror_pulse_sync.status.warning_bits.warning_1
-#define _PULSE_SYNC_PERSONALITY_READY      mirror_pulse_sync.status.warning_bits.warning_4
-#define _PULSE_SYNC_PERSONALITY_VALUE      ((*(unsigned int*)&mirror_pulse_sync.status.not_logged_bits) & 0x000F)
-#define _PULSE_SYNC_FAULT_REGISTER          *(unsigned int*)&mirror_pulse_sync.status.fault_bits
-#define _PULSE_SYNC_PFN_FAN_FAULT          mirror_pulse_sync.status.fault_bits.fault_3
-#define _PULSE_SYNC_FAULT_X_RAY_MISMATCH   mirror_pulse_sync.status.fault_bits.fault_0
-
-
-// PUBLIC Variables
-#define HIGH_SPEED_DATA_BUFFER_SIZE   16
-extern ETMCanHighSpeedData high_speed_data_buffer_a[HIGH_SPEED_DATA_BUFFER_SIZE]; // Used by TCP/IP Module
-extern ETMCanHighSpeedData high_speed_data_buffer_b[HIGH_SPEED_DATA_BUFFER_SIZE]; // Used by TCP/IP Module
-extern ETMCanHighSpeedData etm_can_high_speed_data_test;                          // Used by TCP/IP Module
-extern unsigned int etm_can_active_debugging_board_id;                            // Used by TCP/IP Module
+#include "P1395_CAN_CORE.h"  // This is needed for status register deffenition
 
 
 
 // Public Functions
-void ETMCanMasterDoCan(void);
-
-void ETMCanMasterInitialize(unsigned int requested_can_port, unsigned long fcy, unsigned int etm_can_address, unsigned long can_operation_led, unsigned int can_interrupt_priority);
+void ETMCanMasterInitialize(unsigned int requested_can_port, unsigned long fcy, unsigned long can_operation_led, unsigned int can_interrupt_priority, unsigned int boards_to_ignore);
 /*
   This is called once when the processor starts up to initialize the can bus and all of the can variables
 */
 
-void ETMCanMasterLoadConfiguration(unsigned long agile_id, unsigned int agile_dash, unsigned int agile_rev, unsigned int firmware_agile_rev, unsigned int firmware_branch, unsigned int firmware_branch_rev, unsigned int serial_number);
+void ETMCanMasterDoCan(void);
 /*
-  This is called once when the prcoessor starts up to load the board configuration into RAM so it can be sent over CAN to the ECB
+  This should be called once through the main execution loop
+  This runs all the interrupt based can functions
+  Recieving Messages, Sending messages, executing messages, logging data, ect.
 */
 
-void ETMCanMasterSetSyncState(unsigned int state);
+void ETMCanMasterSetScaledMagnetronHeaterCurrent(unsigned int scaled_current_setting);
+/*
+  This is used to set the scaled magentron heater current.  
+  It is not stored in the dose_level registers because that data is just a mirror from the EEProm
+*/
 
-void SendCalibrationSetPointToSlave(unsigned int index, unsigned int data_1, unsigned int data_0);
-
-void ReadCalibrationSetPointFromSlave(unsigned int index);
-
-void SendSlaveLoadDefaultEEpromData(unsigned int board_id);
-
-void SendSlaveReset(unsigned int board_id);
-
-void SendToEventLog(unsigned int log_id);
-
-void ETMCanMasterClearHighSpeedLogging(void);
-
-// These defines are generated by spreadsheet to match the GUI
-// https://docs.google.com/spreadsheets/d/1LzGyVvQnTHxvrr1z5vqS47o2sXn8c0amM__B0XKyfbk/edit#gid=0
-
-#define LOG_ID_ENTERED_STATE_STARTUP                       0x0110
-#define LOG_ID_ENTERED_STATE_SAFETY_SELF_TEST              0x0112
-#define LOG_ID_ENTERED_STATE_WAITING_FOR_POWER_ON          0x0116
-#define LOG_ID_ENTERED_STATE_WAITING_FOR_INITIALIZATION    0x0118
-#define LOG_ID_ENTERED_STATE_WARMUP                        0x0120
-#define LOG_ID_ENTERED_STATE_STANDBY                       0x0130
-#define LOG_ID_ENTERED_STATE_DRIVE_UP                      0x0140
-#define LOG_ID_ENTERED_STATE_READY                         0x0150
-#define LOG_ID_ENTERED_STATE_XRAY_ON                       0x0160
-
-#define LOG_ID_ENTERED_STATE_FAULT_WARMUP                  0x01A0
-#define LOG_ID_ENTERED_STATE_FAULT_SYSTEM                  0x01A2
-#define LOG_ID_ENTERED_STATE_FAULT_HOLD                    0x01A4
-#define LOG_ID_ENTERED_STATE_FAULT_RESET                   0x01A6
-#define LOG_ID_ENTERED_STATE_SAFE_POWER_DOWN               0x01A8
+void ETMCanMasterSetActiveDebuggingBoardID(unsigned int save_debug_data_from_this_board_id);
+/*
+  This is used to selct which board's debugging information is stored
+  This must come from the GUI as only the GUI knows which board it wants to display debugging information for
+*/
 
 
-#define LOG_ID_NOT_CONNECTED_ION_PUMP_BOARD 0x0001
-#define LOG_ID_CONNECTED_ION_PUMP_BOARD 0x0081
-#define LOG_ID_NOT_CONNECTED_MAGNETRON_CURRENT_BOARD 0x0002
-#define LOG_ID_CONNECTED_MAGNETRON_CURRENT_BOARD 0x0082
-#define LOG_ID_NOT_CONNECTED_PULSE_SYNC_BOARD 0x0003
-#define LOG_ID_CONNECTED_PULSE_SYNC_BOARD 0x0083
-#define LOG_ID_NOT_CONNECTED_HV_LAMBDA_BOARD 0x0004
-#define LOG_ID_CONNECTED_HV_LAMBDA_BOARD 0x0084
-#define LOG_ID_NOT_CONNECTED_AFC_BOARD 0x0005
-#define LOG_ID_CONNECTED_AFC_BOARD 0x0085
-#define LOG_ID_NOT_CONNECTED_COOLING_BOARD 0x0006
-#define LOG_ID_CONNECTED_COOLING_BOARD 0x0086
-#define LOG_ID_NOT_CONNECTED_HEATER_MAGNET_BOARD 0x0007
-#define LOG_ID_CONNECTED_HEATER_MAGNET_BOARD 0x0087
-#define LOG_ID_NOT_CONNECTED_GUN_DRIVER_BOARD 0x0008
-#define LOG_ID_CONNECTED_GUN_DRIVER_BOARD 0x0088
 
-#define LOG_ID_PERSONALITY_RECEIVED 0x0200
-#define LOG_ID_PERSONALITY_ERROR 0x0201
-#define LOG_ID_ALL_MODULES_CONFIGURED 0x0202
-#define LOG_ID_WARMUP_DONE 0x0203
-#define LOG_ID_DRIVEUP_COMPLETE 0x0204
-#define LOG_ID_DRIVE_UP_TIMEOUT 0x0205
-#define LOG_ID_HV_OFF_FAULTS_CLEAR 0x0206
+void ETMCanMasterSendSlaveResetMCU(unsigned int board_id);
+void ETMCanMasterSendSlaveLoadDefaultEEpromData(unsigned int board_id);
+void ETMCanMasterSendSlaveRevAndSerialNumber(unsigned int board_id, unsigned int serial_number, unsigned int rev_char);
+void ETMCanMasterSendSlaveCalibrationPair(unsigned int board_id, unsigned int cal_pair_select, unsigned int cal_offset, unsigned int cal_gain);
+void ETMCanMasterSendSlaveRAMDebugLocations(unsigned int board_id, unsigned int address_A, unsigned int address_B, unsigned int address_C);
+void ETMCanMasterSendSlaveEEPROMDebug(unsigned int board_id, unsigned int eeprom_register);
+void ETMCanMasterSendDiscreteCMD(unsigned int discrete_cmd_id);
+
+
+//void ETMCanMasterSendSyncMessage(ETMCanSyncMessage sync_message);
+/*
+  This is used after a trigger (or change in sync data) to send a sync message
+  The can module will automatically send out a sync message every N millisconds if this is not called using data from the previous ETMCanMasterSendSyncMessage
+*/
+
+//void ETMCanMasterSendDefaultRequestRTSP();
+//void ETMCanMasterSendDefaultConfirmRTSP();
+//void ETMCanMasterSendDefaultIgnoreFaults(unsigned int board_id, unsigned int faults_to_ignore);
+
+
+
+
+void ETMCanMasterSyncSet(unsigned char sync_setting_select, unsigned char value);
+
+#define SYNC_BIT_RESET_ENABLE      0x00
+#define SYNC_BIT_ENABLE_PULSE_LOG  0x01 
+#define SYNC_BIT_COOLING_FAULT     0x04
+#define SYNC_BIT_HV_DISABLE        0x05
+#define SYNC_BIT_GUN_HTR_DISABLE   0x06
+#define SYNC_BIT_CLEAR_DEBUG_DATA  0x0F
+
+
+unsigned int ETMCanMasterCheckResetActive(void);
+/*
+  Returns 0xFFFF if reset is active
+  0 otherwise
+*/
+
+
+unsigned int ETMCanMasterCheckSlaveConfigured(unsigned int board_id);
+/*
+  Checks the connected and configured status of a slave board
+  Returns 0xFFFF if the slave is connected and configured OR if the slave is being ignored
+  Returns 0 otherwise
+*/
+
+unsigned int ETMCanMasterCheckAllBoardsConnected(void);
+/*
+  Checks the connections status of all boards (that not are not ignored)
+  Returns 0xFFFF if all the boards are connected
+  Returns 0 otherwise
+*/
+
+unsigned int ETMCanMasterCheckAllBoardsConfigured(void);
+/*
+  Checks the configuration AND connection status of all boards (that not are not ignored)
+  Returns 0xFFFF if all the boards are configured and connected
+  Returns 0 otherwise
+*/
+
+unsigned int ETMCanMasterCheckAllSlavesReady(void);
+/*
+  Returns 0xFFFF it all slave boards (except those ignored) are ready.
+  Returns 0x0000 otherwise
+
+  This should be called before every trigger is generated
+*/
+
+
+unsigned int ETMCanMasterCheckSlaveReady(unsigned int board_select);
+/*
+  If this board is being ignored, this function will awlays return 0xFFFF
+  If this board is not connected, this function will return 0x0000
+  If none of the above, will return 0xFFFF is not not_ready bit is clear, will return 0x0000 if the not_ready bit is set
+*/
+
+unsigned int ETMCanMasterCheckSlaveFault(void);
+/*
+  Returns 0xFFFF if any (non-ignored) slave has a fault.
+  Returns 0x0000 otherwise
+
+*/
+
+
+unsigned int ETMCanMasterReturnSlaveStatusBit(unsigned int bit_select, unsigned int default_value);
+/*
+  This, funcion is used to check any bit in the status register of any board
+  If, the bit selected is not valid for any reason, (bit_select not valid, board is being ignored, ect) the the default_value will be returned
+  This is so that control logic can be written to behave in a known fashion if a board is being ignored
+
+  bit_select - used to select the slave board, status register word, and bit you want to check
+  0x0[board_id][Register Select][Bit Select]
+  For example the Gun Driver(board 0x7), Top OV error (Fault Register - 0x1) (bit - 0x6)
+  Would be defined as 0x0716
+
+  Will return 0xFFFF if the selected bit is set, 0x0000 otherwise
+*/
+
+#define HEATER_MAGNET_HEATER_OK_BIT            0x0000 // DPARKER Get the correct bits
+#define ION_PUMP_OVER_CURRENT_ACTIVE_BIT       0x0000
+#define COOLING_INTERFACE_FLOW_OK_BIT          0x0000
+#define MAGNETRON_CURRENT_FALSE_TRIGGER        0x0000  
+#define GUN_DRIVER_HEATER_RAMP_COMPLETE        0x0000
+
 
 
 
 
 typedef struct {
-  unsigned int  event_number; // this resets to zero at power up
-  unsigned long event_time;   // this is the custom time format
-  unsigned int  event_id;     // This tells what the event was
-
-  // In the future we may add more data to the event;
-} TYPE_EVENT;
-
-extern unsigned int can_master_millisecond_counter;
-#define mem_time_seconds_now                                 (*(unsigned long*)&local_data_ecb.log_data[1])
+  unsigned int hvps_set_point;                    // transmitted to HVPS Interface
+  unsigned int electromagnet_set_point;           // transmitted to HEATER/MAGNET Interface
+  unsigned int gun_driver_pulse_top_voltage;      // transmitted to Gun Driver Interfacce
+  unsigned int gun_driver_cathode_voltage;        // transmitted to Gun Driver Interfacce
+  unsigned int trigger_delay_spare;               // Used on System Controller
+  unsigned int trigger_delay_afc;                 // Used on System Controller
+  unsigned int trigger_grid_start_min_dose;       // Used on System Controller
+  unsigned int trigger_grid_start_max_dose;       // Used on System Controller
+  unsigned int trigger_grid_stop_min_dose;        // Used on System Controller
+  unsigned int trigger_grid_stop_max_dose;        // Used on System Controller
+  unsigned int afc_home_poistion;                 // transmitted to AFC Inerterface
+  unsigned int self_trigger_prf;                  // Used on System Controller
+  unsigned int unused_2;
+  unsigned int unused_1;
+  unsigned int unused_0;
+  unsigned int crc_do_not_write;
+} TYPE_DOSE_LEVEL;
 
 
 typedef struct {
-  TYPE_EVENT event_data[128];
-  unsigned int write_index;
-  unsigned int gui_index;
-  unsigned int eeprom_index;
-} TYPE_EVENT_LOG;
- 
-
-extern TYPE_EVENT_LOG event_log;
-
-/* 
-   The ethernet control board keeps a record of standard data from all the slave boards
-   This includes status, low level errors, configuration, and debug information
-   This is a hack to allow the data on the master to be accessed the same way as it is on the slave boards
-*/
-
-
-
-extern ETMCanSyncMessage    etm_can_master_sync_message;
-
-#define _SYNC_CONTROL_RESET_ENABLE            etm_can_master_sync_message.sync_0_control_word.sync_0_reset_enable
-#define _SYNC_CONTROL_HIGH_SPEED_LOGGING      etm_can_master_sync_message.sync_0_control_word.sync_1_high_speed_logging_enabled
-#define _SYNC_CONTROL_PULSE_SYNC_DISABLE_HV   etm_can_master_sync_message.sync_0_control_word.sync_2_pulse_sync_disable_hv
-#define _SYNC_CONTROL_PULSE_SYNC_DISABLE_XRAY etm_can_master_sync_message.sync_0_control_word.sync_3_pulse_sync_disable_xray
-#define _SYNC_CONTROL_COOLING_FAULT           etm_can_master_sync_message.sync_0_control_word.sync_4_cooling_fault
-#define _SYNC_CONTROL_SYSTEM_HV_DISABLE       etm_can_master_sync_message.sync_0_control_word.sync_5_system_hv_disable
-#define _SYNC_CONTROL_GUN_DRIVER_DISABLE_HTR  etm_can_master_sync_message.sync_0_control_word.sync_6_gun_driver_disable_heater
-#define _SYNC_CONTROL_CLEAR_DEBUG_DATA        etm_can_master_sync_message.sync_0_control_word.sync_F_clear_debug_data
+  unsigned int magnetron_heater_current_at_standby;         // Used on System Controller, but the scalled seeting is sent to HEATER/MAGNET Interface
+  unsigned int gun_driver_heater_voltage;         // transmitted to Gun Driver Interfacce
+  unsigned int trigger_hvps_start;                // Used on System Controller
+  unsigned int trigger_hvps_stop;                 // Used on System Controller
+  unsigned int trigger_pfn;                       // Used on System Controller
+  unsigned int trigger_magnetron_and_target_current_start;  // Used on System Controller
+  unsigned int trigger_magnetron_and_target_current_stop;   // Used on System Controller
+  unsigned int x_ray_run_time_in_automated_mode;  // Used on System Controller
+  unsigned int gun_driver_bias_voltage;           // transmitted to Gun Driver Interfacce
+  unsigned int afc_aux_control_or_offset;         // transmitted to AFC Inerterface
+  unsigned int afc_manual_target_position;        // transmitted to AFC Inerterface
+  unsigned int unused_3;
+  unsigned int unused_2;
+  unsigned int unused_1;
+  unsigned int unused_0;
+  unsigned int crc_do_not_write;
+} TYPE_ALL_DOSE_LEVELS;
 
 
-#define _SYNC_CONTROL_PULSE_SYNC_WARMUP_LED   etm_can_master_sync_message.sync_0_control_word.sync_A_pulse_sync_warmup_led_on
-#define _SYNC_CONTROL_PULSE_SYNC_STANDBY_LED  etm_can_master_sync_message.sync_0_control_word.sync_B_pulse_sync_standby_led_on
-#define _SYNC_CONTROL_PULSE_SYNC_READY_LED    etm_can_master_sync_message.sync_0_control_word.sync_C_pulse_sync_ready_led_on
-#define _SYNC_CONTROL_PULSE_SYNC_FAULT_LED    etm_can_master_sync_message.sync_0_control_word.sync_D_pulse_sync_fault_led_on
+typedef struct {
+  unsigned int             compensation_0;
+  unsigned int             compensation_1;
+  unsigned int             compensation_2;
+  unsigned int             compensation_3;
+  unsigned int             compensation_4;
+  unsigned int             compensation_5;
+  unsigned int             compensation_6;
+  unsigned int             compensation_7;
+  unsigned int             compensation_8;
+  unsigned int             compensation_9;
+  unsigned int             compensation_10;
+  unsigned int             compensation_11;
+  unsigned int             compensation_12;
+  unsigned int             compensation_13;
+  unsigned int             compensation_14;
+  unsigned int             crc_do_not_write;
+} TYPE_DOSE_COMP;
 
-#define _SYNC_CONTROL_WORD                    *(unsigned int*)&etm_can_master_sync_message.sync_0_control_word
+
+typedef struct {
+  unsigned int             ecb_agile_number_high_word;
+  unsigned int             ecb_agile_number_low_word;
+  unsigned int             ecb_agile_dash_number;
+  unsigned int             ecb_agile_rev_ASCII_x2;
+  unsigned int             ecb_serial_number_high_word;
+  unsigned int             ecb_serial_number_low_word;
+  unsigned int             firmware_agile_rev;
+  unsigned int             firmware_branch;
+  unsigned int             firmware_branch_rev;
+  unsigned int             system_serial_letter;
+  unsigned int             system_serial_number_high_word;
+  unsigned int             system_serial_number_low_word;
+  unsigned int             date_of_atp; // upper 7 bits (years since 2000), lower 9 bits, day of year
+  unsigned int             atp_technician;
+  unsigned int             control_state;
+  unsigned int             crc_do_not_write;
+} TYPE_ECB_INFO;
+
+
+typedef struct {
+  unsigned long            arc_counter;
+  unsigned long            hv_on_seconds;
+  unsigned long            powered_seconds;
+  unsigned long            xray_on_seconds;
+  unsigned long            last_warmup_seconds;
+  unsigned long            warmup_status;
+  // Higest 12 bits = thyratron warmup, middle 10 bits = magnetron heater warmup, lowest 10 bits = gun heater warmup
+  unsigned long long       pulse_counter;       // Only the highest 48 bits are available
+  // The lowest word of the pulse_counter is in fact the CRC
+  // when increasing the pulse counter add 0x00010000, instead of 1
+} TYPE_SYSTEM_COUNTERS;
+
+
+//extern ETMCanBoardDebuggingData debug_data_ecb;
 
 
 
-extern unsigned int etm_can_master_next_pulse_level;  // This value will get updated when a next pulse level command is received
-extern unsigned int etm_can_master_next_pulse_count;  // This value will get updated when a next pulse level command is received
+
+typedef struct {
+  ETMCanStatusRegister status;
+  TYPE_SYSTEM_COUNTERS system_counters;
+  TYPE_DOSE_LEVEL      dose_level_0;
+  TYPE_DOSE_LEVEL      dose_level_1;
+  TYPE_DOSE_LEVEL      dose_level_2;
+  TYPE_DOSE_LEVEL      dose_level_3;
+  TYPE_ALL_DOSE_LEVELS dose_level_all;
+  TYPE_DOSE_COMP       dose_compensation_group_a;
+  TYPE_DOSE_COMP       dose_compensation_group_b;
+  TYPE_ECB_INFO        config;
+} TYPE_ECB_DATA;
+
+extern TYPE_ECB_DATA ecb_data;
 
 
-unsigned int ETMCanMasterGetPulsePRF(void);
+
+#define _CONTROL_NOT_READY            ecb_data.status.control_notice_bits.control_not_ready
+#define _CONTROL_NOT_CONFIGURED       ecb_data.status.control_notice_bits.control_not_configured
+#define _CONTROL_SELF_CHECK_ERROR     ecb_data.status.control_notice_bits.control_self_check_error
 
 
-void ETMCanMasterSendMsg(unsigned int id, unsigned int word3, unsigned int word2, unsigned int word1, unsigned int word0);
+#define _NOTICE_0                     ecb_data.status.control_notice_bits.notice_0
+#define _NOTICE_1                     ecb_data.status.control_notice_bits.notice_1
+#define _NOTICE_2                     ecb_data.status.control_notice_bits.notice_2
+#define _NOTICE_3                     ecb_data.status.control_notice_bits.notice_3
+#define _NOTICE_4                     ecb_data.status.control_notice_bits.notice_4
+#define _NOTICE_5                     ecb_data.status.control_notice_bits.notice_5
+#define _NOTICE_6                     ecb_data.status.control_notice_bits.notice_6
+#define _NOTICE_7                     ecb_data.status.control_notice_bits.notice_7
 
+#define _FAULT_0                      ecb_data.status.fault_bits.fault_0
+#define _FAULT_1                      ecb_data.status.fault_bits.fault_1
+#define _FAULT_2                      ecb_data.status.fault_bits.fault_2
+#define _FAULT_3                      ecb_data.status.fault_bits.fault_3
+#define _FAULT_4                      ecb_data.status.fault_bits.fault_4
+#define _FAULT_5                      ecb_data.status.fault_bits.fault_5
+#define _FAULT_6                      ecb_data.status.fault_bits.fault_6
+#define _FAULT_7                      ecb_data.status.fault_bits.fault_7
+#define _FAULT_8                      ecb_data.status.fault_bits.fault_8
+#define _FAULT_9                      ecb_data.status.fault_bits.fault_9
+#define _FAULT_A                      ecb_data.status.fault_bits.fault_A
+#define _FAULT_B                      ecb_data.status.fault_bits.fault_B
+#define _FAULT_C                      ecb_data.status.fault_bits.fault_C
+#define _FAULT_D                      ecb_data.status.fault_bits.fault_D
+#define _FAULT_E                      ecb_data.status.fault_bits.fault_E
+#define _FAULT_F                      ecb_data.status.fault_bits.fault_F
+
+#define _LOGGED_0                     ecb_data.status.warning_bits.warning_0
+#define _LOGGED_1                     ecb_data.status.warning_bits.warning_1
+#define _LOGGED_2                     ecb_data.status.warning_bits.warning_2
+#define _LOGGED_3                     ecb_data.status.warning_bits.warning_3
+#define _LOGGED_4                     ecb_data.status.warning_bits.warning_4
+#define _LOGGED_5                     ecb_data.status.warning_bits.warning_5
+#define _LOGGED_6                     ecb_data.status.warning_bits.warning_6
+#define _LOGGED_7                     ecb_data.status.warning_bits.warning_7
+#define _LOGGED_8                     ecb_data.status.warning_bits.warning_8
+#define _LOGGED_9                     ecb_data.status.warning_bits.warning_9
+#define _LOGGED_A                     ecb_data.status.warning_bits.warning_A
+#define _LOGGED_B                     ecb_data.status.warning_bits.warning_B
+#define _LOGGED_C                     ecb_data.status.warning_bits.warning_C
+#define _LOGGED_D                     ecb_data.status.warning_bits.warning_D
+#define _LOGGED_E                     ecb_data.status.warning_bits.warning_E
+#define _LOGGED_F                     ecb_data.status.warning_bits.warning_F
+
+#define _NOT_LOGGED_0                 ecb_data.status.not_logged_bits.not_logged_0
+#define _NOT_LOGGED_1                 ecb_data.status.not_logged_bits.not_logged_1
+#define _NOT_LOGGED_2                 ecb_data.status.not_logged_bits.not_logged_2
+#define _NOT_LOGGED_3                 ecb_data.status.not_logged_bits.not_logged_3
+#define _NOT_LOGGED_4                 ecb_data.status.not_logged_bits.not_logged_4
+#define _NOT_LOGGED_5                 ecb_data.status.not_logged_bits.not_logged_5
+#define _NOT_LOGGED_6                 ecb_data.status.not_logged_bits.not_logged_6
+#define _NOT_LOGGED_7                 ecb_data.status.not_logged_bits.not_logged_7
+#define _NOT_LOGGED_8                 ecb_data.status.not_logged_bits.not_logged_8
+#define _NOT_LOGGED_9                 ecb_data.status.not_logged_bits.not_logged_9
+#define _NOT_LOGGED_A                 ecb_data.status.not_logged_bits.not_logged_A
+#define _NOT_LOGGED_B                 ecb_data.status.not_logged_bits.not_logged_B
+#define _NOT_LOGGED_C                 ecb_data.status.not_logged_bits.not_logged_C
+#define _NOT_LOGGED_D                 ecb_data.status.not_logged_bits.not_logged_D
+#define _NOT_LOGGED_E                 ecb_data.status.not_logged_bits.not_logged_E
+#define _NOT_LOGGED_F                 ecb_data.status.not_logged_bits.not_logged_F
+
+#define _CONTROL_REGISTER             *(unsigned int*)&ecb_data.status.control_notice_bits
+#define _FAULT_REGISTER               *(unsigned int*)&ecb_data.status.fault_bits
+#define _WARNING_REGISTER             *(unsigned int*)&ecb_data.status.warning_bits
+#define _NOT_LOGGED_REGISTER          *(unsigned int*)&ecb_data.status.not_logged_bits
 
 
 #endif

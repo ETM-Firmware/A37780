@@ -21,7 +21,7 @@
 
 #define FCY_CLK  20000000
 
-
+/*
 typedef struct {
   unsigned int hvps_voltage;
   unsigned int electromagnet_current;
@@ -39,6 +39,9 @@ typedef struct {
   unsigned int unused_3;
   unsigned int unused_4;
 } TYPE_DOSE_LEVEL;
+*/
+
+/*
 
 typedef struct {
   unsigned int  magnetron_heater_current_at_standby;
@@ -56,25 +59,10 @@ typedef struct {
   unsigned int  unused_3;
   unsigned int  unused_4;
 } TYPE_DOSE_FIXED_SETTINGS;
+*/
 
 
-typedef struct {
-  unsigned int dose_comp_0[15];
-  unsigned int dose_comp_1[15];
-  unsigned int dose_comp_2[15];
-  unsigned int dose_comp_3[15];
-} TYPE_DOSE_COMPENSATION;
-
-
-typedef struct {
-  TYPE_DOSE_LEVEL          dose_level_0;
-  TYPE_DOSE_LEVEL          dose_level_1;
-  TYPE_DOSE_LEVEL          dose_level_2;
-  TYPE_DOSE_LEVEL          dose_level_3;
-  TYPE_DOSE_FIXED_SETTINGS fixed_dose_settings;
-  TYPE_DOSE_COMPENSATION   dose_compensation;
-} TYPE_RF_CONFIGURATION;
-
+/*
 
 typedef struct {
   unsigned long system_counter_seconds_hv_on;
@@ -86,7 +74,7 @@ typedef struct {
   unsigned int  magnetron_warmup_remaining;
   unsigned int  pfn_warmup_remaining;
 } TYPE_SYSTEM_COUNTERS;
-
+*/
 
 typedef struct {
   ETMCanStatusRegister             status;
@@ -337,6 +325,12 @@ typedef struct {
 #define DISCRETE_OUTPUT_SPARE                  0
 
 
+
+#define DISCRETE_INPUT_X_RAY_ON                PIN_IN_PIC_INPUT_3
+#define DISCRETE_INPUT_X_RAY_OFF               PIN_IN_PIC_INPUT_4
+#define ILL_X_RAY_ON_XRAY_ENABLED              1
+
+
 #define DISCRETE_INPUT_SYSTEM_ENABLE           PIN_IN_PIC_INPUT_1
 #define ILL_SYSTEM_ENABLE                      0
 
@@ -401,6 +395,7 @@ typedef struct {
 
 
 typedef struct {
+  /*
   // This is a 16 word Block that is written / read from EEPROM as a group
   unsigned long long pulse_counter_48_bit;  // DPARKER Change this to a 64 bit number and ignore the high word and reaarage the data so the high word isn't sent to the EEPROM
   unsigned long arc_counter;
@@ -410,38 +405,40 @@ typedef struct {
   unsigned long last_recorded_warmup_seconds;
   unsigned long holding_bits_for_warmup; // Higest 12 bits = thyratron warmup, middle 10 bits = magnetron heater warmup, lowest 10 bits = gun heater warmup
   unsigned int reserved_crc_eeprom_page_0;
+  */
 
   unsigned int thyratron_warmup_remaining; 
   unsigned int magnetron_warmup_remaining;
   unsigned int gun_warmup_remaining;
 
   
-  TYPE_PUBLIC_ANALOG_INPUT analog_input_5v_mon;                    // 1mV per LSB
-  TYPE_PUBLIC_ANALOG_INPUT analog_input_3v3_mon;                   // 1mV per LSB
+  //TYPE_PUBLIC_ANALOG_INPUT analog_input_5v_mon;                    // 1mV per LSB
+  //TYPE_PUBLIC_ANALOG_INPUT analog_input_3v3_mon;                   // 1mV per LSB
 
-  unsigned int control_state;
+  //unsigned int control_state;
   //unsigned int thyratron_warmup_counter_seconds;
   //unsigned int magnetron_heater_warmup_counter_seconds;
   //unsigned int gun_driver_heater_warmup_counter_seconds;
 
   //unsigned int millisecond_counter;
-  unsigned int warmup_timer_stage;
-  unsigned int warmup_done;
+  //unsigned int warmup_timer_stage;
+  
   unsigned int gun_heater_holdoff_timer;
 
   
-  RTC_TIME time_now;
+  //RTC_TIME time_now;
   //unsigned long time_seconds_now;
   
   //unsigned int send_pulse_sync_config;
   unsigned int drive_up_timer;
 
   //unsigned int average_output_power_watts;
-  unsigned int event_log_counter;
+  //unsigned int event_log_counter;
   
   unsigned int startup_counter;
 
 
+  /*
   unsigned int no_connect_count_ion_pump_board;
   unsigned int no_connect_count_magnetron_current_board;
   unsigned int no_connect_count_pulse_sync_board;
@@ -455,21 +452,23 @@ typedef struct {
   unsigned int buffer_b_ready_to_send;
   unsigned int buffer_a_sent;
   unsigned int buffer_b_sent;
-
-  unsigned int reset_requested;
+  //unsigned int personality_select_from_pulse_sync;
+  //unsigned int system_serial_number;  
+  */
   
-  unsigned int personality_select_from_pulse_sync;
-
-  unsigned int drive_up_fault_counter;
-  unsigned int high_voltage_on_fault_counter;
+  unsigned int reset_requested;  //DPARKER evaulate this
   unsigned int reset_hold_timer;
 
-  unsigned int system_serial_number;
-  unsigned int most_recent_ref_detector_reading;
 
-  unsigned int eeprom_failure;
+  unsigned int warmup_done;
+  
+  
+  
+  //unsigned int most_recent_ref_detector_reading;
 
-  unsigned int most_recent_watchdog_reading;
+
+
+  //unsigned int most_recent_watchdog_reading;
 
   unsigned int access_mode;
   unsigned int service_passcode;
@@ -483,7 +482,15 @@ typedef struct {
   unsigned int dose_level;
 
   unsigned int single_dual_energy_mode_selection;
+
+  unsigned int high_voltage_on_fault_counter;
+  unsigned int drive_up_fault_counter;
+  unsigned int eeprom_failure;
   
+  unsigned int x_ray_on_off_mismatch_counter;
+  unsigned int x_ray_on_while_beam_disabled_counter;
+  unsigned int x_ray_on_wrong_state_counter;
+
 } A37780GlobalVars;
 
 
@@ -495,7 +502,6 @@ typedef struct {
 } FAULTVars;
 
 
-#define ECB_COUNTER_AND_TIMERS_RAM_POINTER (((unsigned int*)(&global_data_A37780.pulse_counter_48_bit)) + 1)
 #define average_output_power_watts                           local_data_ecb.log_data[14]
 
 
@@ -520,12 +526,21 @@ typedef struct {
 extern A37780GlobalVars global_data_A37780;
 
 
-#define _FAULT_X_RAY_ON_LOGIC_ERROR                     _FAULT_0
+#define _FAULT_WAVEGUIDE_ARC                            _FAULT_0
 #define _FAULT_REPEATED_DRIVE_UP_FAULT                  _FAULT_1
 #define _FAULT_REPEATED_HV_ON_FAULT                     _FAULT_2
 #define _FAULT_EEPROM_FAILURE                           _FAULT_3
 // FAULT 4 is reserved for magnetron over power
 #define _FAULT_WATCHDOG_ERROR                           _FAULT_5
+#define _FAULT_X_RAY_MISMATCH                           _FAULT_6
+#define _FAULT_X_RAY_ON_WRONG_STATE                     _FAULT_7
+#define _FAULT_X_RAY_ON_BEAM_DISABLED                   _FAULT_8
+
+#define _FAULT_PFN_FAN_FAULT                            _FAULT_9
+
+
+
+
 
 // DPAKRER  - Need to evaluate how these are used under new control system
 #define _STATUS_PERSONALITY_LOADED                      _LOGGED_0
@@ -608,6 +623,84 @@ extern A37780GlobalVars global_data_A37780;
 #define EEPROM_REGISTER_GUN_DRV_HIGH_PULSE_TOP                      0x0021
 #define EEPROM_REGISTER_GUN_DRV_LOW_PULSE_TOP                       0x0022
 #define EEPROM_REGISTER_GUN_DRV_CATHODE                             0x0023
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#define LOG_ID_ENTERED_STATE_STARTUP                       0x0110
+#define LOG_ID_ENTERED_STATE_SAFETY_SELF_TEST              0x0112
+#define LOG_ID_ENTERED_STATE_WAITING_FOR_POWER_ON          0x0116
+#define LOG_ID_ENTERED_STATE_WAITING_FOR_INITIALIZATION    0x0118
+#define LOG_ID_ENTERED_STATE_WARMUP                        0x0120
+#define LOG_ID_ENTERED_STATE_STANDBY                       0x0130
+#define LOG_ID_ENTERED_STATE_DRIVE_UP                      0x0140
+#define LOG_ID_ENTERED_STATE_READY                         0x0150
+#define LOG_ID_ENTERED_STATE_XRAY_ON                       0x0160
+
+#define LOG_ID_ENTERED_STATE_FAULT_WARMUP                  0x01A0
+#define LOG_ID_ENTERED_STATE_FAULT_SYSTEM                  0x01A2
+#define LOG_ID_ENTERED_STATE_FAULT_HOLD                    0x01A4
+#define LOG_ID_ENTERED_STATE_FAULT_RESET                   0x01A6
+#define LOG_ID_ENTERED_STATE_SAFE_POWER_DOWN               0x01A8
+
+
+#define LOG_ID_NOT_CONNECTED_ION_PUMP_BOARD 0x0001
+#define LOG_ID_CONNECTED_ION_PUMP_BOARD 0x0081
+#define LOG_ID_NOT_CONNECTED_MAGNETRON_CURRENT_BOARD 0x0002
+#define LOG_ID_CONNECTED_MAGNETRON_CURRENT_BOARD 0x0082
+#define LOG_ID_NOT_CONNECTED_PULSE_SYNC_BOARD 0x0003
+#define LOG_ID_CONNECTED_PULSE_SYNC_BOARD 0x0083
+#define LOG_ID_NOT_CONNECTED_HV_LAMBDA_BOARD 0x0004
+#define LOG_ID_CONNECTED_HV_LAMBDA_BOARD 0x0084
+#define LOG_ID_NOT_CONNECTED_AFC_BOARD 0x0005
+#define LOG_ID_CONNECTED_AFC_BOARD 0x0085
+#define LOG_ID_NOT_CONNECTED_COOLING_BOARD 0x0006
+#define LOG_ID_CONNECTED_COOLING_BOARD 0x0086
+#define LOG_ID_NOT_CONNECTED_HEATER_MAGNET_BOARD 0x0007
+#define LOG_ID_CONNECTED_HEATER_MAGNET_BOARD 0x0087
+#define LOG_ID_NOT_CONNECTED_GUN_DRIVER_BOARD 0x0008
+#define LOG_ID_CONNECTED_GUN_DRIVER_BOARD 0x0088
+
+#define LOG_ID_PERSONALITY_RECEIVED 0x0200
+#define LOG_ID_PERSONALITY_ERROR 0x0201
+#define LOG_ID_ALL_MODULES_CONFIGURED 0x0202
+#define LOG_ID_WARMUP_DONE 0x0203
+#define LOG_ID_DRIVEUP_COMPLETE 0x0204
+#define LOG_ID_DRIVE_UP_TIMEOUT 0x0205
+#define LOG_ID_HV_OFF_FAULTS_CLEAR 0x0206
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 #endif
