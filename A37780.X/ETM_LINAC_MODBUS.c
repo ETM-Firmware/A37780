@@ -485,7 +485,7 @@ void ETMLinacModbusUpdate(void) {
 
 void ETMLinacModbusInitialize(void) {
   IPCONFIG ip_config;
-  TYPE_ENC28J60_CONFIG ENC28J60_config;
+  TYPE_ENCx24J600_CONFIG ENCx24J600_config;
   
 
   // DPARKER Load this from EEPROM or USE DEFAULT????
@@ -503,9 +503,9 @@ void ETMLinacModbusInitialize(void) {
   //ip_config.net_bios_name  = "ETMBoard Test";
   strcpy(ip_config.net_bios_name, "ETMBoard Test");
 
-  ENC28J60_config.cable_select_pin = _PIN_RD15;
-  ENC28J60_config.reset_pin = _PIN_RA15;
-  ENC28J60_config.spi_port = TCPMODBUS_USE_SPI_PORT_1;
+  ENCx24J600_config.cable_select_pin = _PIN_RG3;
+  //                                              ENCx24J600_config.reset_pin = _PIN_RA15;
+  ENCx24J600_config.spi_port = TCPMODBUS_USE_SPI_PORT_1;
 
   // DPARKER make this part of the system configuration
   if (ETMTickNotInitialized()) {
@@ -515,7 +515,7 @@ void ETMLinacModbusInitialize(void) {
   eth_message_from_GUI_put_index = 0;
   eth_message_from_GUI_get_index = 0; 
 
-  ETMTCPModbusENC28J60Initialize(&ENC28J60_config);
+  ETMTCPModbusENCx24J600Initialize(&ENCx24J600_config);
 
   #define CONNECTION_TIMEOUT_MILLISECONDS  5000
   #define RESPONSE_TIMEOUT_MILLISECONDS     200

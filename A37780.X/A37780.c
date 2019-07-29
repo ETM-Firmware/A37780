@@ -1081,7 +1081,7 @@ void DoA36507(void) {
   etm_can_master_sync_message.sync_3 = 0x4567;
 
   ETMCanMasterDoCan();
-  //ETMLinacModbusUpdate();
+  ETMLinacModbusUpdate();
   ExecuteEthernetCommand();
 
   if (global_data_A36507.eeprom_failure) {
@@ -1559,7 +1559,7 @@ ETMAnalogInputInitialize(&analog_5V_vmon,
   PR2   = 0xFFFF;
   TMR2  = 0;
   
-  //ETMLinacModbusInitialize();
+  ETMLinacModbusInitialize();
   
 }
  
