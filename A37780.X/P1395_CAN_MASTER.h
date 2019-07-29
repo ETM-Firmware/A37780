@@ -42,17 +42,21 @@ void ETMCanMasterSendSlaveEEPROMDebug(unsigned int board_id, unsigned int eeprom
 void ETMCanMasterSendDiscreteCMD(unsigned int discrete_cmd_id);
 
 
-//void ETMCanMasterSendSyncMessage(ETMCanSyncMessage sync_message);
-/*
-  This is used after a trigger (or change in sync data) to send a sync message
-  The can module will automatically send out a sync message every N millisconds if this is not called using data from the previous ETMCanMasterSendSyncMessage
-*/
+
 
 //void ETMCanMasterSendDefaultRequestRTSP();
 //void ETMCanMasterSendDefaultConfirmRTSP();
 //void ETMCanMasterSendDefaultIgnoreFaults(unsigned int board_id, unsigned int faults_to_ignore);
 
 
+
+
+void ETMCanMasterSendSyncMessage(unsigned char dose_level, unsigned char pulse_count);
+/*
+  This is used after a trigger (or change in sync data) to send a sync message
+  The can module will automatically send out a sync message every
+  SYNC_MESSAGE_MAX_TRANSMISSION_PERIOD millisconds if this is not called
+*/
 
 
 void ETMCanMasterSyncSet(unsigned char sync_setting_select, unsigned char value);

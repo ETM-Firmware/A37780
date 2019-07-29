@@ -9,7 +9,7 @@
 
 #include "ETM.h"
 //#include "TCPmodbus.h"
-#include "ETM_LINAC_MODBUS.h"
+//#include "ETM_LINAC_MODBUS.h"
 
 
 
@@ -437,6 +437,7 @@ typedef struct {
   
   unsigned int startup_counter;
 
+  unsigned long time_seconds_now;
 
   /*
   unsigned int no_connect_count_ion_pump_board;

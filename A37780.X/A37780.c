@@ -1,9 +1,14 @@
 #include "A37780.h"
 #include "FIRMWARE_VERSION.h"
 #include "A37780_CONFIG.h"
-#include "TCPmodbus.h"
 #include "ETM_ANALOG.h"
 #include "ETM_TICK.h"
+
+
+
+void SendToEventLog(unsigned int message_id) {
+
+}
 
 
 TYPE_ECB_DATA ecb_data;
@@ -77,7 +82,7 @@ unsigned int mode_select_internal_trigger;  // DPARKER create structure for run 
 #define ACCESS_MODE_SERVICE_PW_FIXED  0xF1A7
 #define ACCESS_MODE_ETM_PW_FIXED      0x117F
 
-unsigned long ten_millisecond_holding_var;
+
 
 //TYPE_PUBLIC_ANALOG_INPUT analog_3_3V_vmon;
 TYPE_PUBLIC_ANALOG_INPUT analog_5V_vmon;
@@ -970,15 +975,113 @@ void UpdateDebugData(void) {
 
 
 void DoA37780(void) {
+  static unsigned long ten_millisecond_holding_var;
+  static unsigned long one_second_holding_var;
+  
+  /* 
+     DPARKER,do we need to set these???
+     etm_can_master_sync_message.sync_1_ecb_state_for_fault_logic = ecb_data.config.control_state;
+     etm_can_master_sync_message.sync_2 = 0x0123;
+     etm_can_master_sync_message.sync_3 = 0x4567;
+  */
 
-  etm_can_master_sync_message.sync_1_ecb_state_for_fault_logic = ecb_data.config.control_state;
-  etm_can_master_sync_message.sync_2 = 0x0123;
-  etm_can_master_sync_message.sync_3 = 0x4567;
 
   ETMCanMasterDoCan();
   //ETMLinacModbusUpdate();
   ExecuteEthernetCommand();
 
+
+  if (ETMTickRunOnceEveryNMilliseconds(1000, &one_second_holding_var)) {
+
+    // DPARKER add code detect a PFN FAN FAULT
+    if (PIN_OUT_LED_GRN_OPERATION) {
+      PIN_OUT_LED_GRN_OPERATION = 0;
+    } else {
+      PIN_OUT_LED_GRN_OPERATION = 1;
+    }
+
+    
+    // Update the thyratron warmup counters
+    if (!_FAULT_PFN_FAN_FAULT) {
+      if (global_data_A37780.thyratron_warmup_remaining > 0) {
+	global_data_A37780.thyratron_warmup_remaining--;
+      }
+    } else {
+      global_data_A37780.thyratron_warmup_remaining += 2;
+    }
+    if (global_data_A37780.thyratron_warmup_remaining >= THYRATRON_WARM_UP_TIME) {
+      global_data_A37780.thyratron_warmup_remaining = THYRATRON_WARM_UP_TIME;
+    }
+
+    // Update the Magnetron Heater warmup
+    if (ETMCanMasterCheckSlaveConfigured(ETM_CAN_ADDR_HEATER_MAGNET_BOARD) &&
+	ETMCanMasterReturnSlaveStatusBit(HEATER_MAGNET_HEATER_OK_BIT, 1)) {
+      if (global_data_A37780.magnetron_warmup_remaining > 0) {
+	global_data_A37780.magnetron_warmup_remaining--;
+      }
+    } else {
+      global_data_A37780.magnetron_warmup_remaining += 2;
+    }
+    if (global_data_A37780.magnetron_warmup_remaining >= MAGNETRON_HEATER_WARM_UP_TIME) {
+      global_data_A37780.magnetron_warmup_remaining = MAGNETRON_HEATER_WARM_UP_TIME;
+    }
+
+    // Update the Gun Heater Warmup
+    if (ETMCanMasterCheckSlaveConfigured(ETM_CAN_ADDR_GUN_DRIVER_BOARD) &&
+	ETMCanMasterReturnSlaveStatusBit(GUN_DRIVER_HEATER_RAMP_COMPLETE, 1)) {
+      // The gun heater is on
+      if (global_data_A37780.gun_warmup_remaining > 0) {
+	global_data_A37780.gun_warmup_remaining--;
+      }
+    } else {
+      global_data_A37780.gun_warmup_remaining += 2;
+    }
+    if (global_data_A37780.gun_warmup_remaining >= GUN_DRIVER_HEATER_WARM_UP_TIME) {
+      global_data_A37780.gun_warmup_remaining = GUN_DRIVER_HEATER_WARM_UP_TIME;
+    }
+    
+    // Write System timers, Arc Counter, Pulse Counter, and warmup timers to EEPROM
+    ecb_data.system_counters.last_warmup_seconds = global_data_A37780.time_seconds_now;
+    if (global_data_A37780.gun_warmup_remaining >= 0x3FF) {
+      global_data_A37780.gun_warmup_remaining = 0x3FF;
+    }
+    if (global_data_A37780.magnetron_warmup_remaining >= 0x3FF) {
+      global_data_A37780.magnetron_warmup_remaining = 0x3FF;
+    }
+    if (global_data_A37780.thyratron_warmup_remaining >= 0xFFF) {
+      global_data_A37780.thyratron_warmup_remaining = 0xFFF;
+    }
+    ecb_data.system_counters.warmup_status = global_data_A37780.thyratron_warmup_remaining;
+    ecb_data.system_counters.warmup_status <<= 10;
+    ecb_data.system_counters.warmup_status += global_data_A37780.magnetron_warmup_remaining;
+    ecb_data.system_counters.warmup_status <<= 10;
+    ecb_data.system_counters.warmup_status += global_data_A37780.gun_warmup_remaining;
+    if (global_data_A37780.eeprom_failure == 0) {
+      // Do not overwrite the values if we were unable to read them properly at boot
+      ETMEEPromWritePageFast(EEPROM_PAGE_ECB_COUNTER_AND_TIMERS, (unsigned int*)&ecb_data.system_counters);
+    }
+        
+    // Update warmup done 
+    if ((global_data_A37780.thyratron_warmup_remaining) ||
+	(global_data_A37780.magnetron_warmup_remaining) ||
+	(global_data_A37780.gun_warmup_remaining)) {
+      global_data_A37780.warmup_done = 0;
+    } else {
+      global_data_A37780.warmup_done = 1;
+    }
+
+    // Update the system power counters
+    if (ecb_data.config.control_state >= STATE_WAITING_FOR_INITIALIZATION) { 
+      ecb_data.system_counters.powered_seconds++;
+    }
+    if (ecb_data.config.control_state == STATE_READY) {
+      ecb_data.system_counters.hv_on_seconds++;
+    }
+    if (ecb_data.config.control_state == STATE_XRAY_ON) {
+      ecb_data.system_counters.hv_on_seconds++;
+      ecb_data.system_counters.xray_on_seconds++;
+    }
+  } // End of 1 Second Tasks
 
   if (ETMTickRunOnceEveryNMilliseconds(10, &ten_millisecond_holding_var)) {
     // 10ms Timer has expired -- run periodic checks and updates
@@ -1138,128 +1241,6 @@ void DoA37780(void) {
     if (global_data_A37780.gun_heater_holdoff_timer <= (GUN_HEATER_HOLDOFF_AT_STARTUP + GUN_HEATER_ADDITONAL_HOLDOFF_COLD)) {
       global_data_A37780.gun_heater_holdoff_timer++;
     }
-
-
-    /*
-      The following tasks require use of the i2c bus which can hold the processor for a lot of time
-      Need to schedule them at different point of a 1 second period
-    */
-    can_master_millisecond_counter += 10;
-
-    // Run at 1 second interval
-    if (can_master_millisecond_counter >= 1000) {
-      can_master_millisecond_counter = 0;
-      //SendToEventLog(0xD1DF);
-    }
-
-    // Run once a second at 0 milliseconds
-    if (can_master_millisecond_counter == 0) {
-      // Read Date/Time from RTC and update the warmup up counters
-
-      ReadDateAndTime(&U6_DS3231, &global_data_A37780.time_now);
-      mem_time_seconds_now = RTCDateToSeconds(&global_data_A37780.time_now);
-      
-    } // End of tasks that happen when millisecond = 0
-    
-
-    // Run once a second at 500 milliseconds
-    if (can_master_millisecond_counter == 500) {
-
-      // Update the warmup counters
-      if (!_PULSE_SYNC_PFN_FAN_FAULT) {
-	if (global_data_A37780.thyratron_warmup_remaining > 0) {
-	  global_data_A37780.thyratron_warmup_remaining--;
-	}
-      } else {
-	global_data_A37780.thyratron_warmup_remaining += 2;
-      }
-      if (global_data_A37780.thyratron_warmup_remaining >= THYRATRON_WARM_UP_TIME) {
-	global_data_A37780.thyratron_warmup_remaining = THYRATRON_WARM_UP_TIME;
-      }
-
-      if (ETMCanMasterCheckSlaveConfigured(ETM_CAN_ADDR_HEATER_MAGNET_BOARD) &&
-	  ETMCanMasterReturnSlaveStatusBit(HEATER_MAGNET_HEATER_OK_BIT, 1)) {
-	// The Magnetron heater is on
-	if (global_data_A37780.magnetron_warmup_remaining > 0) {
-	  global_data_A37780.magnetron_warmup_remaining--;
-	}
-      } else {
-	global_data_A37780.magnetron_warmup_remaining += 2;
-      }
-      if (global_data_A37780.magnetron_warmup_remaining >= MAGNETRON_HEATER_WARM_UP_TIME) {
-	global_data_A37780.magnetron_warmup_remaining = MAGNETRON_HEATER_WARM_UP_TIME;
-      }
-
-      if (ETMCanMasterCheckSlaveConfigured(ETM_CAN_ADDR_GUN_DRIVER_BOARD) &&
-	  ETMCanMasterReturnSlaveStatusBit(GUN_DRIVER_HEATER_RAMP_COMPLETE, 1)) {
-	// The gun heater is on
-	if (global_data_A37780.gun_warmup_remaining > 0) {
-	  global_data_A37780.gun_warmup_remaining--;
-	}
-      } else {
-	global_data_A37780.gun_warmup_remaining += 2;
-      }
-      if (global_data_A37780.gun_warmup_remaining >= GUN_DRIVER_HEATER_WARM_UP_TIME) {
-	global_data_A37780.gun_warmup_remaining = GUN_DRIVER_HEATER_WARM_UP_TIME;
-      }
-
-
-      /*
-	DPARKER - FIGUER OUT HOW TO IMPLIMENT THESE
-#ifdef __IGNORE_HEATER_MAGNET_MODULE
-      global_data_A37780.magnetron_warmup_remaining = 0;
-#endif
-      
-#ifdef __IGNORE_GUN_DRIVER_MODULE
-      global_data_A37780.gun_warmup_remaining = 0;
-#endif
-      */
-      
-
-      if ((global_data_A37780.thyratron_warmup_remaining) || (global_data_A37780.magnetron_warmup_remaining) || (global_data_A37780.gun_warmup_remaining)) {
-	global_data_A37780.warmup_done = 0;
-      } else {
-	global_data_A37780.warmup_done = 1;
-      }
-
-      // Update the system power on counters
-      ecb_data.system_counters.powered_seconds++;
-
-      if (ecb_data.config.control_state == STATE_READY) {
-	ecb_data.system_counters.hv_on_seconds++;
-      }
-      
-      if (ecb_data.config.control_state == STATE_XRAY_ON) {
-	ecb_data.system_counters.hv_on_seconds++;
-	ecb_data.system_counters.xray_on_seconds++;
-      }
-      
-      // Write System timers, Arc Counter, Pulse Counter, and warmup timers to EEPROM
-      ecb_data.system_counters.last_warmup_seconds = mem_time_seconds_now;
-
-      if (global_data_A37780.gun_warmup_remaining >= 0x3FF) {
-	global_data_A37780.gun_warmup_remaining = 0x3FF;
-      }
-
-      if (global_data_A37780.magnetron_warmup_remaining >= 0x3FF) {
-	global_data_A37780.magnetron_warmup_remaining = 0x3FF;
-      }
-
-      if (global_data_A37780.thyratron_warmup_remaining >= 0xFFF) {
-	global_data_A37780.thyratron_warmup_remaining = 0xFFF;
-      }
-      
-      ecb_data.system_counters.warmup_status = global_data_A37780.thyratron_warmup_remaining;
-      ecb_data.system_counters.warmup_status <<= 10;
-      ecb_data.system_counters.warmup_status += global_data_A37780.magnetron_warmup_remaining;
-      ecb_data.system_counters.warmup_status <<= 10;
-      ecb_data.system_counters.warmup_status += global_data_A37780.gun_warmup_remaining;
-
-      if (global_data_A37780.eeprom_failure == 0) {
-	// Do not overwrite the values if we were unable to read them properly at boot
-	ETMEEPromWritePageFast(EEPROM_PAGE_ECB_COUNTER_AND_TIMERS, (unsigned int*)&ecb_data.system_coutners);
-      }
-    } // End of tasks that happen when millisecond = 500
     
   } // End of 10ms Tasks
 }
@@ -1321,7 +1302,11 @@ unsigned int CalculatePulseEnergyMilliJoules(unsigned int lambda_voltage) {
 }
 
 
+
 void UpdateHeaterScale() {
+  // DPAKER UPDATE THIS FUNCTION
+
+  /*
   unsigned long long power_calc;
   unsigned int temp16;
 
@@ -1329,6 +1314,9 @@ void UpdateHeaterScale() {
   // Load the energy per pulse into temp32
   // Use the higher of High/Low Energy set point
 
+
+
+  
   if (etm_can_master_next_pulse_level) {
     power_calc = CalculatePulseEnergyMilliJoules(ecb_data.dose_level_0.hvps_set_point);
   } else {
@@ -1362,6 +1350,8 @@ void UpdateHeaterScale() {
   local_heater_current_scaled_set_point = ETMScaleFactor16(local_magnetron_heater_current_dose_all,
 							   FilamentLookUpTable[temp16],
 							   0);
+  */
+
 }
 
 
@@ -1488,7 +1478,7 @@ ETMAnalogInputInitialize(&analog_5V_vmon,
   
   // Read the current time
   // DPARKER - Figure out how to set the time based on the off time and information from the GUI
-  mem_time_seconds_now = 0;
+  global_data_A37780.time_seconds_now = 0;
   
   CalculateHeaterWarmupTimers();     // Calculate all of the warmup counters based on previous warmup counters
   
@@ -1554,7 +1544,7 @@ void CalculateHeaterWarmupTimers(void) {
   unsigned long difference;
   
   // Calculate new warm up time remaining
-  difference = mem_time_seconds_now - ecb_data.system_counters.last_warmup_seconds;
+  difference = global_data_A37780.time_seconds_now - ecb_data.system_counters.last_warmup_seconds;
   if (difference >= 0x0E00) {
     difference = 0x0E00;
   }
@@ -1994,11 +1984,20 @@ void LoadDefaultSystemCalibrationToEEProm(void) {
 #define REGISTER_ETM_SAVE_CURRENT_SETTINGS_TO_FACTORY_DEFAULT 0x1208
 
 
+// DPARKER PUT THIS WHERE IT BELONGS
+typedef struct {
+  unsigned int index ;                  // command index
+  unsigned int data_2;
+  unsigned int data_1;
+  unsigned int data_0;
+} ETMEthernetMessageFromGUI;
+
 
 void ExecuteEthernetCommand(void) {
   ETMEthernetMessageFromGUI next_message;
-  
-  next_message = GetNextMessageFromGUI();
+
+  // DPARKER PUT NEXT_MESSAGE BACK IN
+  //next_message = GetNextMessageFromGUI();
   if (next_message.index == 0xFFFF) {
     // there was no message
     return;
@@ -2120,13 +2119,7 @@ void ExecuteEthernetCommand(void) {
 	}
       } else {
 	// Set the rev and S/N for the Slave
-	if (next_message.data_2 <= 0x000F) {
-	  ETMCanMasterSendMsg((ETM_CAN_MSG_CMD_TX | (next_message.data_2 << 2)),
-			      (next_message.data_2 << 12) + 0x180,
-			      0,
-			      next_message.data_1,
-			      next_message.data_0);
-	}
+	ETMCanMasterSendSlaveRevAndSerialNumber(next_message.data_2, next_message.data_1, next_message.data_0);
       }
       break;
 
@@ -2547,7 +2540,7 @@ void ExecuteEthernetCommand(void) {
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
       if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_ALL<<4) + 0), next_message.data_2) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_all.magnetron_heater_current_at_standby = next_message.data2;
+	ecb_data.dose_level_all.magnetron_heater_current_at_standby = next_message.data_2;
       }
       break;
 
@@ -2555,7 +2548,7 @@ void ExecuteEthernetCommand(void) {
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
       if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_ALL<<4) + 1), next_message.data_2) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_all.gun_driver_heater_voltage = next_message.data2;
+	ecb_data.dose_level_all.gun_driver_heater_voltage = next_message.data_2;
       }
       break;
 
@@ -2563,7 +2556,7 @@ void ExecuteEthernetCommand(void) {
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
       if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_ALL<<4) + 2), next_message.data_2) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_all.trigger_hvps_start = next_message.data2;
+	ecb_data.dose_level_all.trigger_hvps_start = next_message.data_2;
       }
       break;
 
@@ -2571,7 +2564,7 @@ void ExecuteEthernetCommand(void) {
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
       if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_ALL<<4) + 3), next_message.data_2) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_all.trigger_hvps_stop = next_message.data2;
+	ecb_data.dose_level_all.trigger_hvps_stop = next_message.data_2;
       }
       break;
     
@@ -2579,7 +2572,7 @@ void ExecuteEthernetCommand(void) {
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
       if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_ALL<<4) + 4), next_message.data_2) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_all.trigger_pfn = next_message.data2;
+	ecb_data.dose_level_all.trigger_pfn = next_message.data_2;
       }
       break;
 
@@ -2701,7 +2694,8 @@ void ExecuteEthernetCommand(void) {
       
     case REGISTER_SYSTEM_ENABLE_HIGH_SPEED_LOGGING:
       // Clear the Logging registers
-      ETMCanMasterClearHighSpeedLogging();
+      // DPARKER deal with ETMCanMasterClearHighSpeedLogging
+      //ETMCanMasterClearHighSpeedLogging();
       ETMCanMasterSyncSet(SYNC_BIT_ENABLE_PULSE_LOG, 1);
       break;
       

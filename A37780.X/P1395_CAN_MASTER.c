@@ -8,12 +8,8 @@
 ETMCanBoardData local_data_mirror[NUMBER_OF_DATA_MIRRORS];
 ETMCanBoardDebuggingData debug_data_slave_mirror;
 
+
 // ---------------  Global Variables that are to be used by the main source code ------------------- //
-TYPE_DOSE_LEVEL          dose_level_0;
-TYPE_DOSE_LEVEL          dose_level_1;
-TYPE_DOSE_LEVEL          dose_level_2;
-TYPE_DOSE_LEVEL          dose_level_3;
-TYPE_ALL_DOSE_LEVELS     dose_level_all;
 ETMCanBoardDebuggingData debug_data_ecb;
 
 
@@ -35,7 +31,7 @@ static void LocalUpdateSlaveNotReady(void);
 
 
 // ----------  local variables that are set through function calls -------------//
-static ETMCanSyncMessage previous_sync_message;
+static ETMCanSyncMessage sync_message;
 static unsigned int etm_can_active_debugging_board_id;
 static unsigned int etm_can_magnetron_heater_scaled_heater_current;
 static unsigned int etm_can_master_boards_to_ignore;
@@ -88,20 +84,20 @@ void ETMCanMasterInitialize(unsigned int requested_can_port, unsigned long fcy, 
   persistent_data_reset_count++;
 
 
-  previous_sync_message.sync_0_control_word.sync_0_reset_enable = 0;
-  previous_sync_message.sync_0_control_word.sync_1_high_speed_logging_enabled = 0;
-  previous_sync_message.sync_0_control_word.sync_4_cooling_fault = 1;
-  previous_sync_message.sync_0_control_word.sync_5_system_hv_disable = 1;
-  previous_sync_message.sync_0_control_word.sync_6_gun_driver_disable_heater = 1;
-  previous_sync_message.sync_0_control_word.sync_D_scope_HV_HVMON_active = 1;
-  previous_sync_message.sync_0_control_word.sync_E_ingnore_faults_enabled = 0;
-  previous_sync_message.sync_0_control_word.sync_F_clear_debug_data = 0;
+  sync_message.sync_0_control_word.sync_0_reset_enable = 0;
+  sync_message.sync_0_control_word.sync_1_high_speed_logging_enabled = 0;
+  sync_message.sync_0_control_word.sync_4_cooling_fault = 1;
+  sync_message.sync_0_control_word.sync_5_system_hv_disable = 1;
+  sync_message.sync_0_control_word.sync_6_gun_driver_disable_heater = 1;
+  sync_message.sync_0_control_word.sync_D_scope_HV_HVMON_active = 1;
+  sync_message.sync_0_control_word.sync_E_ingnore_faults_enabled = 0;
+  sync_message.sync_0_control_word.sync_F_clear_debug_data = 0;
 
-  previous_sync_message.pulse_count = 0;
-  previous_sync_message.next_energy_level = 0;
-  previous_sync_message.prf_from_ecb = 0;
-  previous_sync_message.scope_A_select = 0;
-  previous_sync_message.scope_B_select = 0;
+  sync_message.pulse_count = 0;
+  sync_message.next_energy_level = 0;
+  sync_message.prf_from_ecb = 0;
+  sync_message.scope_A_select = 0;
+  sync_message.scope_B_select = 0;
       
   debug_data_ecb.reset_count = persistent_data_reset_count;
   debug_data_ecb.can_timeout = persistent_data_can_timeout_count;
@@ -210,7 +206,7 @@ void ETMCanMasterDoCan(void) {
   LocalReceiveLogData();
   LocalUpdateSlaveNotReady();
 
-  if (previous_sync_message.sync_0_control_word.sync_F_clear_debug_data) {
+  if (sync_message.sync_0_control_word.sync_F_clear_debug_data) {
     LocalClearDebug();
   }
   
@@ -241,14 +237,14 @@ void ETMCanMasterDoCan(void) {
 }
 
 static void LocalTransmitSync(void) {
-  ETMCanMessage sync_message;
-  sync_message.identifier = ETM_CAN_MSG_SYNC_TX;
-  sync_message.word0 = *(unsigned int*)&previous_sync_message.sync_0_control_word;
-  sync_message.word1 = *(unsigned int*)&previous_sync_message.pulse_count;
-  sync_message.word2 = previous_sync_message.prf_from_ecb;
-  sync_message.word3 = *(unsigned int*)&previous_sync_message.scope_A_select;
+  ETMCanMessage sync_transmit;
+  sync_transmit.identifier = ETM_CAN_MSG_SYNC_TX;
+  sync_transmit.word0 = *(unsigned int*)&sync_message.sync_0_control_word;
+  sync_transmit.word1 = *(unsigned int*)&sync_message.pulse_count;
+  sync_transmit.word2 = sync_message.prf_from_ecb;
+  sync_transmit.word3 = *(unsigned int*)&sync_message.scope_A_select;
   
-  ETMCanTXMessage(&sync_message, CXTX1CON_ptr);
+  ETMCanTXMessage(&sync_transmit, CXTX1CON_ptr);
   debug_data_ecb.can_tx_1++;
   etm_can_master_sync_message_timer_holding_var = ETMTickGet();
 }
@@ -288,50 +284,50 @@ static void LocalTimedTransmit(void) {
       {
       case 0x0:
 	LocalTransmitToSlave(ETM_CAN_CMD_ID_HVPS_SET_POINTS,
-			     dose_level_3.hvps_set_point,
-			     dose_level_2.hvps_set_point,
-			     dose_level_1.hvps_set_point,
-			     dose_level_0.hvps_set_point);
+			     ecb_data.dose_level_3.hvps_set_point,
+			     ecb_data.dose_level_2.hvps_set_point,
+			     ecb_data.dose_level_1.hvps_set_point,
+			     ecb_data.dose_level_0.hvps_set_point);
 	break;
 	
       case 0x1:
 	LocalTransmitToSlave(ETM_CAN_CMD_ID_MAGNET_SET_POINTS,
-			     dose_level_3.electromagnet_set_point,
-			     dose_level_2.electromagnet_set_point,
-			     dose_level_1.electromagnet_set_point,
-			     dose_level_0.electromagnet_set_point);
+			     ecb_data.dose_level_3.electromagnet_set_point,
+			     ecb_data.dose_level_2.electromagnet_set_point,
+			     ecb_data.dose_level_1.electromagnet_set_point,
+			     ecb_data.dose_level_0.electromagnet_set_point);
 	break;
 	
       case 0x2:
 	LocalTransmitToSlave(ETM_CAN_CMD_ID_GUN_PULSE_TOP_SET_POINTS,
-			     dose_level_3.gun_driver_pulse_top_voltage,
-			     dose_level_2.gun_driver_pulse_top_voltage,
-			     dose_level_1.gun_driver_pulse_top_voltage,
-			     dose_level_0.gun_driver_pulse_top_voltage);
+			     ecb_data.dose_level_3.gun_driver_pulse_top_voltage,
+			     ecb_data.dose_level_2.gun_driver_pulse_top_voltage,
+			     ecb_data.dose_level_1.gun_driver_pulse_top_voltage,
+			     ecb_data.dose_level_0.gun_driver_pulse_top_voltage);
 	break;
 	
       case 0x3:
 	LocalTransmitToSlave(ETM_CAN_CMD_ID_GUN_CATHODE_SET_POINTS,
-			     dose_level_3.gun_driver_cathode_voltage,
-			     dose_level_2.gun_driver_cathode_voltage,
-			     dose_level_1.gun_driver_cathode_voltage,
-			     dose_level_0.gun_driver_cathode_voltage);
+			     ecb_data.dose_level_3.gun_driver_cathode_voltage,
+			     ecb_data.dose_level_2.gun_driver_cathode_voltage,
+			     ecb_data.dose_level_1.gun_driver_cathode_voltage,
+			     ecb_data.dose_level_0.gun_driver_cathode_voltage);
 	break;
 	
       case 0x4:
 	LocalTransmitToSlave(ETM_CAN_CMD_ID_AFC_HOME_POSTION,
-			     dose_level_3.afc_home_poistion,
-			     dose_level_2.afc_home_poistion,
-			     dose_level_1.afc_home_poistion,
-			     dose_level_0.afc_home_poistion);
+			     ecb_data.dose_level_3.afc_home_poistion,
+			     ecb_data.dose_level_2.afc_home_poistion,
+			     ecb_data.dose_level_1.afc_home_poistion,
+			     ecb_data.dose_level_0.afc_home_poistion);
 	break;
 	
       case 0x5:
 	LocalTransmitToSlave(ETM_CAN_CMD_ID_ALL_DOSE_SET_POINTS_REGISTER_A,
 			     etm_can_magnetron_heater_scaled_heater_current,
-			     dose_level_all.afc_aux_control_or_offset,
-			     dose_level_all.gun_driver_grid_bias_voltage,
-			     dose_level_all.gun_driver_heater_voltage);
+			     ecb_data.dose_level_all.afc_aux_control_or_offset,
+			     ecb_data.dose_level_all.gun_driver_bias_voltage,
+			     ecb_data.dose_level_all.gun_driver_heater_voltage);
 	break;
 
       case 0x6:
@@ -339,7 +335,7 @@ static void LocalTimedTransmit(void) {
 			     0,
 			     0,
 			     0,
-			     dose_level_all.afc_manual_target_position);
+			     ecb_data.dose_level_all.afc_manual_target_position);
 	break;
 	
       default:
@@ -379,11 +375,68 @@ void ETMCanMasterSendDiscreteCMD(unsigned int discrete_cmd_id) {
   LocalTransmitToSlave(ETM_CAN_CMD_ID_DISCRETE_CMD, discrete_cmd_id, 0, 0, 0);
 }
 
-void ETMCanMasterSendSyncMessage(ETMCanSyncMessage sync_message) {
-  previous_sync_message = sync_message;
-  //LocalLoggingHighSpeedInitializeRow(previous_sync_message.pulse_count);  // DPARKER ADD THIS
+unsigned int ETMCanMasterCheckResetActive(void) {
+  if (sync_message.sync_0_control_word.sync_0_reset_enable) {
+    return 0xFFFF;
+  }
+  return 0;
+}
+
+
+void ETMCanMasterSyncSet(unsigned char sync_setting_select, unsigned char value) {
+  switch (sync_setting_select) {
+
+  case SYNC_BIT_RESET_ENABLE:
+    sync_message.sync_0_control_word.sync_0_reset_enable = 0;
+    if (value) {
+      sync_message.sync_0_control_word.sync_0_reset_enable = 1;
+    }
+    break;
+
+  case SYNC_BIT_ENABLE_PULSE_LOG:
+    sync_message.sync_0_control_word.sync_1_high_speed_logging_enabled = 0;
+    if (value) {
+      sync_message.sync_0_control_word.sync_1_high_speed_logging_enabled = 1;
+    }
+    break;
+
+  case SYNC_BIT_COOLING_FAULT:
+    sync_message.sync_0_control_word.sync_4_cooling_fault = 0;
+    if (value) {
+      sync_message.sync_0_control_word.sync_4_cooling_fault = 1;
+    }
+    break;
+    
+  case SYNC_BIT_HV_DISABLE:
+    sync_message.sync_0_control_word.sync_5_system_hv_disable = 0;
+    if (value) {
+      sync_message.sync_0_control_word.sync_5_system_hv_disable = 1;
+    }
+    break;
+
+  case SYNC_BIT_GUN_HTR_DISABLE:
+    sync_message.sync_0_control_word.sync_6_gun_driver_disable_heater = 0;
+    if (value) {
+      sync_message.sync_0_control_word.sync_6_gun_driver_disable_heater = 1;
+    }
+    break;
+    
+  case SYNC_BIT_CLEAR_DEBUG_DATA:
+    sync_message.sync_0_control_word.sync_F_clear_debug_data = 0;
+    if (value) {
+      sync_message.sync_0_control_word.sync_F_clear_debug_data = 1;
+    }
+    break;
+    
+  }
+}
+
+void ETMCanMasterSendSyncMessage(unsigned char dose_level, unsigned char pulse_count) {
+  sync_message.pulse_count = pulse_count;
+  sync_message.next_energy_level = dose_level;
   LocalTransmitSync();
 }
+
 
 //void ETMCanMasterSendDefaultRequestRTSP(unsigned int board_id);
 //void ETMCanMasterSendDefaultConfirmRTSP(unsigned int board_id);
