@@ -17,6 +17,7 @@
       <itemPath>A37780.c</itemPath>
       <itemPath>P1395_CAN_MASTER.c</itemPath>
       <itemPath>P1395_CAN_CORE.s</itemPath>
+      <itemPath>ETM_LINAC_MODBUS.c</itemPath>
     </logicalFolder>
     <logicalFolder name="ExternalFiles"
                    displayName="Important Files"

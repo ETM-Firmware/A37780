@@ -6,10 +6,6 @@
 
 
 
-void SendToEventLog(unsigned int message_id) {
-
-}
-
 
 TYPE_ECB_DATA ecb_data;
 

@@ -4,7 +4,6 @@
 #include "P1395_CAN_CORE.h"
 
 // ---------- Debug Holding Variables ------------------- //
-#define NUMBER_OF_DATA_MIRRORS 10  //10 Slave Can Channels
 ETMCanBoardData local_data_mirror[NUMBER_OF_DATA_MIRRORS];
 ETMCanBoardDebuggingData debug_data_slave_mirror;
 

@@ -6,6 +6,32 @@
 
 #include <string.h>
 #include "ETM_IO_PORTS.h"  //DPARKER Fix this
+#include "ETM_LINAC_COM.h"
+
+unsigned int etm_can_active_debugging_board_id;
+
+typedef struct {
+  unsigned int  event_number; // this resets to zero at power up
+  unsigned long event_time;   // this is the custom time format
+  unsigned int  event_id;     // This tells what the event was
+
+  // In the future we may add more data to the event;
+} TYPE_EVENT;
+
+typedef struct {
+  TYPE_EVENT event_data[64];
+  unsigned int write_index;
+  unsigned int read_index;
+} TYPE_EVENT_LOG;
+
+TYPE_EVENT_LOG event_log;
+
+TYPE_PULSE_ENTRY pulse_log_data_buffer_a[PULSE_LOG_BUFFER_SIZE];
+TYPE_PULSE_ENTRY pulse_log_data_buffer_b[PULSE_LOG_BUFFER_SIZE];
+
+void SendToEventLog(unsigned int event_type) {
+
+}
 
 
 static void AddMessageFromGUI(unsigned char * buffer_ptr);
@@ -49,7 +75,7 @@ typedef struct {
 
 
 #define ETH_GUI_MESSAGE_BUFFER_SIZE   16
-ETMEthernetMessageFromGUI    eth_message_from_GUI[ ETH_GUI_MESSAGE_BUFFER_SIZE ];
+ETMEthernetMessageFromGUI    eth_message_from_GUI[ETH_GUI_MESSAGE_BUFFER_SIZE];
 
 
 static unsigned char         last_index_sent = 0;  // DPARKER why is this global
@@ -116,7 +142,7 @@ ETMEthernetMessageFromGUI GetNextMessageFromGUI(void) {
 
 
 static unsigned int NewMessageInEventLog(void) {
-  if (event_log.gui_index == event_log.write_index) {
+  if (event_log.read_index == event_log.write_index) {
     return 0;
   }
   return 1;
@@ -126,19 +152,19 @@ static unsigned int NewMessageInEventLog(void) {
 static unsigned int EventLogMessageSize(void) {
   unsigned int events_to_send = 0;
 
-  if (event_log.gui_index > event_log.write_index) {
-    events_to_send = 128 - event_log.gui_index; 
+  if (event_log.read_index > event_log.write_index) {
+    events_to_send = 128 - event_log.read_index; 
   } else {
-    events_to_send = event_log.write_index - event_log.gui_index;
+    events_to_send = event_log.write_index - event_log.read_index;
   }
   if (events_to_send >= 64) {
     // Max of 64 events per send
     events_to_send = 64;
   }	
   
-  // Update the gui_index
-  event_log.gui_index += events_to_send;
-  event_log.gui_index &= 0x7F;
+  // Update the read_index
+  event_log.read_index += events_to_send;
+  event_log.read_index &= 0x7F;
 
   return (events_to_send << 3);
 }
@@ -175,10 +201,6 @@ void SetActiveDebuggingID(unsigned char modbus_index) {
       etm_can_active_debugging_board_id = ETM_CAN_ADDR_MAGNETRON_CURRENT_BOARD;
       break;
       
-    case MODBUS_WR_PULSE_SYNC:
-      etm_can_active_debugging_board_id = ETM_CAN_ADDR_PULSE_SYNC_BOARD;
-      break;
-      
     case MODBUS_WR_ETHERNET:
       etm_can_active_debugging_board_id = ETM_CAN_ADDR_ETHERNET_BOARD;
       break;
@@ -211,7 +233,8 @@ static unsigned char GetNextSendIndex(void) {
 
 
 static void PrepareTXMessage(ETMModbusTXData *tx_data, unsigned char data_type) {
-  static unsigned pulse_index = 0;        // index for eash tracking
+  // DPARKER REMOVE pulse_index as it is not needed as far as I can tell
+  static unsigned char pulse_index = 0;        // index for eash tracking
   static unsigned transaction_number = 0; // Index for each transaction
 
 
@@ -224,55 +247,57 @@ static void PrepareTXMessage(ETMModbusTXData *tx_data, unsigned char data_type) 
   switch (data_type)
     {
     case MODBUS_WR_HVLAMBDA:
-      tx_data->data_ptr = (unsigned char *)&mirror_hv_lambda;
+      tx_data->data_ptr = (unsigned char *)&local_data_mirror[ETM_CAN_ADDR_HV_LAMBDA_BOARD];
       tx_data->data_length = SIZE_BOARD_MIRROR;
       tx_data->tx_ready = 1;
       break;
 
     case MODBUS_WR_ION_PUMP:
-      tx_data->data_ptr = (unsigned char *)&mirror_ion_pump;
+      tx_data->data_ptr = (unsigned char *)&local_data_mirror[ETM_CAN_ADDR_ION_PUMP_BOARD];
       tx_data->data_length = SIZE_BOARD_MIRROR;
       tx_data->tx_ready = 1;
       break;
     
     case MODBUS_WR_AFC:
-      tx_data->data_ptr = (unsigned char *)&mirror_afc;
+      tx_data->data_ptr = (unsigned char *)&local_data_mirror[ETM_CAN_ADDR_AFC_CONTROL_BOARD];
       tx_data->data_length = SIZE_BOARD_MIRROR;
       tx_data->tx_ready = 1;
       break;
       
     case MODBUS_WR_COOLING:
-      tx_data->data_ptr = (unsigned char *)&mirror_cooling;
+      tx_data->data_ptr = (unsigned char *)&local_data_mirror[ETM_CAN_ADDR_COOLING_INTERFACE_BOARD];
       tx_data->data_length = SIZE_BOARD_MIRROR;
       tx_data->tx_ready = 1;
       break;
     
     case MODBUS_WR_HTR_MAGNET:
-      tx_data->data_ptr = (unsigned char *)&mirror_htr_mag;
+      tx_data->data_ptr = (unsigned char *)&local_data_mirror[ETM_CAN_ADDR_HEATER_MAGNET_BOARD];
       tx_data->data_length = SIZE_BOARD_MIRROR;
       tx_data->tx_ready = 1;
       break;
 
     case MODBUS_WR_GUN_DRIVER:
-      tx_data->data_ptr = (unsigned char *)&mirror_gun_drv;
+      tx_data->data_ptr = (unsigned char *)&local_data_mirror[ETM_CAN_ADDR_GUN_DRIVER_BOARD];
       tx_data->data_length = SIZE_BOARD_MIRROR;
       tx_data->tx_ready = 1;
       break;
     
     case MODBUS_WR_MAGNETRON_CURRENT:
-      tx_data->data_ptr = (unsigned char *)&mirror_pulse_mon;
+      tx_data->data_ptr = (unsigned char *)&local_data_mirror[ETM_CAN_ADDR_MAGNETRON_CURRENT_BOARD];
       tx_data->data_length = SIZE_BOARD_MIRROR;
       tx_data->tx_ready = 1;
       break;
-    
-    case MODBUS_WR_PULSE_SYNC:
-      tx_data->data_ptr = (unsigned char *)&mirror_pulse_sync;
+
+      /*
+      case MODBUS_WR_TARGET_CURRENT:
+      tx_data->data_ptr = (unsigned char *)&local_data_mirror[ETM_CAN_ADDR_TARGET_CURRENT_BOARD];
       tx_data->data_length = SIZE_BOARD_MIRROR;
       tx_data->tx_ready = 1;
       break;
+      */
     
     case MODBUS_WR_ETHERNET:
-      tx_data->data_ptr = (unsigned char *)&local_data_ecb;
+      tx_data->data_ptr = (unsigned char *)&ecb_data;
       tx_data->data_length = SIZE_BOARD_MIRROR;
       tx_data->tx_ready = 1;
       break;
@@ -296,7 +321,7 @@ static void PrepareTXMessage(ETMModbusTXData *tx_data, unsigned char data_type) 
     case MODBUS_WR_EVENTS:
       tx_data->tx_ready = 0;
       if (NewMessageInEventLog()) {
-	tx_data->data_ptr = (unsigned char *)&event_log.event_data[event_log.gui_index];
+	tx_data->data_ptr = (unsigned char *)&event_log.event_data[event_log.read_index];
 	tx_data->data_length = EventLogMessageSize();
 	tx_data->tx_ready = 1;
       }
@@ -305,17 +330,19 @@ static void PrepareTXMessage(ETMModbusTXData *tx_data, unsigned char data_type) 
     case MODBUS_WR_PULSE_LOG:
       // DPARKER - Test the pulse log
       // DPARKER - I Don't think that pulse index is needed
-      pulse_index++;  // overflows at 65535
+      //pulse_index++;  // overflows at 255
       if (pulse_log_buffer_select == SEND_BUFFER_A) {
-	tx_data->data_ptr = (unsigned char *)&high_speed_data_buffer_a[0];
+	tx_data->data_ptr = (unsigned char *)&pulse_log_data_buffer_a;
       } else {
-	tx_data->data_ptr = (unsigned char *)&high_speed_data_buffer_b[0];
+	tx_data->data_ptr = (unsigned char *)&pulse_log_data_buffer_b;
       }
-      tx_data->data_length = HIGH_SPEED_DATA_BUFFER_SIZE * sizeof(ETMCanHighSpeedData);
+      tx_data->data_length = PULSE_LOG_BUFFER_SIZE * sizeof(TYPE_PULSE_ENTRY);
       //tx_data->data_length = 0;
       tx_data->tx_ready = 1;
       break;
 
+      /*
+      
     case MODBUS_WR_SCOPE_A:
       tx_data->data_length = 0;
       tx_data->data_ptr = (unsigned char *)&local_data_ecb; // DUMMY LOCATION
@@ -346,12 +373,13 @@ static void PrepareTXMessage(ETMModbusTXData *tx_data, unsigned char data_type) 
       tx_data->tx_ready = 1;
       break;
     
-
-    default: // move to the next for now, ignore some boards
+      default: // move to the next for now, ignore some boards
       tx_data->data_length = 0;
       tx_data->data_ptr = (unsigned char *)&local_data_ecb; // DUMMY LOCATION
       tx_data->tx_ready = 0;
       break;
+
+      */
     }
 
 
@@ -485,7 +513,7 @@ void ETMLinacModbusUpdate(void) {
 
 void ETMLinacModbusInitialize(void) {
   IPCONFIG ip_config;
-  TYPE_ENC28J60_CONFIG ENC28J60_config;
+  TYPE_ENCx24J600_CONFIG ENCx24J600_config;
   
 
   // DPARKER Load this from EEPROM or USE DEFAULT????
@@ -503,9 +531,9 @@ void ETMLinacModbusInitialize(void) {
   //ip_config.net_bios_name  = "ETMBoard Test";
   strcpy(ip_config.net_bios_name, "ETMBoard Test");
 
-  ENC28J60_config.cable_select_pin = _PIN_RD15;
-  ENC28J60_config.reset_pin = _PIN_RA15;
-  ENC28J60_config.spi_port = TCPMODBUS_USE_SPI_PORT_1;
+  ENCx24J600_config.cable_select_pin = _PIN_RG3;
+  //                                              ENCx24J600_config.reset_pin = _PIN_RA15;
+  ENCx24J600_config.spi_port = TCPMODBUS_USE_SPI_PORT_1;
 
   // DPARKER make this part of the system configuration
   if (ETMTickNotInitialized()) {
@@ -515,7 +543,7 @@ void ETMLinacModbusInitialize(void) {
   eth_message_from_GUI_put_index = 0;
   eth_message_from_GUI_get_index = 0; 
 
-  ETMTCPModbusENC28J60Initialize(&ENC28J60_config);
+  ETMTCPModbusENCx24J600Initialize(&ENCx24J600_config);
 
   #define CONNECTION_TIMEOUT_MILLISECONDS  5000
   #define RESPONSE_TIMEOUT_MILLISECONDS     200

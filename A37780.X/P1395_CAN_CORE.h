@@ -549,16 +549,16 @@ unsigned int ETMCanBufferNotEmpty(ETMCanMessageBuffer* buffer_ptr);
 
 //------------------------------- Specific Board and Command Defines -------------------------- // 
 
-#define ETM_CAN_ADDR_ION_PUMP_BOARD                                     0x0000
-#define ETM_CAN_ADDR_MAGNETRON_CURRENT_BOARD                            0x0001
-#define ETM_CAN_ADDR_HV_LAMBDA_BOARD                                    0x0002
-#define ETM_CAN_ADDR_AFC_CONTROL_BOARD                                  0x0003
-#define ETM_CAN_ADDR_COOLING_INTERFACE_BOARD                            0x0004
-#define ETM_CAN_ADDR_HEATER_MAGNET_BOARD                                0x0005
-#define ETM_CAN_ADDR_GUN_DRIVER_BOARD                                   0x0006
+#define ETM_CAN_ADDR_HV_LAMBDA_BOARD                                    0x0000
+#define ETM_CAN_ADDR_ION_PUMP_BOARD                                     0x0001
+#define ETM_CAN_ADDR_AFC_CONTROL_BOARD                                  0x0002
+#define ETM_CAN_ADDR_COOLING_INTERFACE_BOARD                            0x0003
+#define ETM_CAN_ADDR_HEATER_MAGNET_BOARD                                0x0004
+#define ETM_CAN_ADDR_GUN_DRIVER_BOARD                                   0x0005
+#define ETM_CAN_ADDR_MAGNETRON_CURRENT_BOARD                            0x0006
 #define ETM_CAN_ADDR_TARGET_CURRENT_BOARD                               0x0007
-#define ETM_CAN_ADDR_PFN_BOARD                                          0x0008
-#define ETM_CAN_ADDR_DOSE_MONITOR_BOARD                                 0x0009
+#define ETM_CAN_ADDR_DOSE_MONITOR_BOARD                                 0x0008
+#define ETM_CAN_ADDR_PFN_BOARD                                          0x0009
 #define ETM_CAN_ADDR_ETHERNET_BOARD                                     0x000F
 
 

@@ -21,5 +21,8 @@ void ETMLinacModbusUpdate(void);
 
 void ETMLinacModbusInitialize(void);
 
+void SendToEventLog(unsigned int event_type);
+
+//void ETMLinacModusGetActiveDebuggingID(void);
 
 #endif

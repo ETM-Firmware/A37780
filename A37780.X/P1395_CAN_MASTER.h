@@ -6,6 +6,8 @@
 
 
 
+
+
 // Public Functions
 void ETMCanMasterInitialize(unsigned int requested_can_port, unsigned long fcy, unsigned long can_operation_led, unsigned int can_interrupt_priority, unsigned int boards_to_ignore);
 /*
@@ -257,8 +259,11 @@ typedef struct {
   TYPE_ECB_INFO        config;
 } TYPE_ECB_DATA;
 
+#define NUMBER_OF_DATA_MIRRORS 10  //10 Slave Can Channels
 extern TYPE_ECB_DATA ecb_data;
-
+extern ETMCanBoardData local_data_mirror[NUMBER_OF_DATA_MIRRORS];
+extern ETMCanBoardDebuggingData debug_data_slave_mirror;
+extern ETMCanBoardDebuggingData debug_data_ecb;
 
 
 #define _CONTROL_NOT_READY            ecb_data.status.control_notice_bits.control_not_ready
