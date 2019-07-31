@@ -1,9 +1,9 @@
 #include "A37780.h"
 #include "FIRMWARE_VERSION.h"
 #include "A37780_CONFIG.h"
-#include "ETM_ANALOG.h"
-#include "ETM_TICK.h"
-
+//#include "ETM_ANALOG.h"
+//#include "ETM_TICK.h"
+#include "ETM_LINAC_MODBUS.h"
 
 
 
@@ -983,7 +983,7 @@ void DoA37780(void) {
 
 
   ETMCanMasterDoCan();
-  //ETMLinacModbusUpdate();
+  ETMLinacModbusUpdate();
   ExecuteEthernetCommand();
 
 
@@ -1531,7 +1531,7 @@ ETMAnalogInputInitialize(&analog_5V_vmon,
   PR2   = 0xFFFF;
   TMR2  = 0;
   
-  //ETMLinacModbusInitialize();
+  ETMLinacModbusInitialize();
   
 }
  
@@ -1980,20 +1980,12 @@ void LoadDefaultSystemCalibrationToEEProm(void) {
 #define REGISTER_ETM_SAVE_CURRENT_SETTINGS_TO_FACTORY_DEFAULT 0x1208
 
 
-// DPARKER PUT THIS WHERE IT BELONGS
-typedef struct {
-  unsigned int index ;                  // command index
-  unsigned int data_2;
-  unsigned int data_1;
-  unsigned int data_0;
-} ETMEthernetMessageFromGUI;
-
 
 void ExecuteEthernetCommand(void) {
   ETMEthernetMessageFromGUI next_message;
 
   // DPARKER PUT NEXT_MESSAGE BACK IN
-  //next_message = GetNextMessageFromGUI();
+  next_message = GetNextMessageFromGUI();
   if (next_message.index == 0xFFFF) {
     // there was no message
     return;

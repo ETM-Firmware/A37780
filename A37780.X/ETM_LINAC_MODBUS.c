@@ -4,6 +4,8 @@
 #include "ETM_TICK.h"
 #include "ETM_LINAC_MODBUS.h"
 
+#include "TCPmodbus.h"
+
 #include <string.h>
 #include "ETM_IO_PORTS.h"  //DPARKER Fix this
 #include "ETM_LINAC_COM.h"
@@ -11,15 +13,16 @@
 unsigned int etm_can_active_debugging_board_id;
 
 typedef struct {
-  unsigned int  event_number; // this resets to zero at power up
-  unsigned long event_time;   // this is the custom time format
-  unsigned int  event_id;     // This tells what the event was
-
-  // In the future we may add more data to the event;
+  unsigned int event_time;   // This is the lower 16 bit of the second counter, GUI will have to re-align the higher 16 bits
+  unsigned int event_id;     // This tells what the event was
+  unsigned int event_data_a; // Additional Data about the event
+  unsigned int event_data_b; // Additional Data about the event
 } TYPE_EVENT;
 
+
+#define EVENT_LOG_SIZE 64
 typedef struct {
-  TYPE_EVENT event_data[64];
+  TYPE_EVENT event_data[EVENT_LOG_SIZE];  // DPARKER TEST IF WE CAN DROP THIS TO 32
   unsigned int write_index;
   unsigned int read_index;
 } TYPE_EVENT_LOG;
@@ -29,9 +32,21 @@ TYPE_EVENT_LOG event_log;
 TYPE_PULSE_ENTRY pulse_log_data_buffer_a[PULSE_LOG_BUFFER_SIZE];
 TYPE_PULSE_ENTRY pulse_log_data_buffer_b[PULSE_LOG_BUFFER_SIZE];
 
-void SendToEventLog(unsigned int event_type) {
 
+void SendToEventLog(unsigned int log_id) {
+  event_log.event_data[event_log.write_index].event_time   = 0;  // DPARKER get the lower 16 bits of the current time
+  event_log.event_data[event_log.write_index].event_id     = log_id;
+  event_log.event_data[event_log.write_index].event_data_a = 0;
+  event_log.event_data[event_log.write_index].event_data_b = 0;
+  event_log.write_index++;
+  event_log.write_index &= (EVENT_LOG_SIZE-1);
+  if (event_log.write_index == event_log.read_index) {
+    // The event log is full, over write th old events
+    event_log.read_index++;
+    event_log.read_index &= (EVENT_LOG_SIZE-1);
+  }
 }
+
 
 
 static void AddMessageFromGUI(unsigned char * buffer_ptr);
@@ -49,13 +64,13 @@ enum {
   MODBUS_WR_HTR_MAGNET,
   MODBUS_WR_GUN_DRIVER,
   MODBUS_WR_MAGNETRON_CURRENT,
-  MODBUS_WR_PULSE_SYNC,
+  MODBUS_WR_TARGET_CURRENT,
+  MODBUS_WR_DOSE_MONITOR,
+  MODBUS_WR_PFN_BOARD,
   MODBUS_WR_ETHERNET,
   MODBUS_WR_DEBUG_DATA,
   MODBUS_WR_EVENTS,
-  MODBUS_WR_CAL_DATA,
   MODBUS_WR_CYCLE_STOP,
-  
   MODBUS_WR_PULSE_LOG,
   MODBUS_WR_SCOPE_A,
   MODBUS_WR_SCOPE_B,
@@ -63,15 +78,6 @@ enum {
   MODBUS_WR_SCOPE_MAGNETRON_CURRENT,
   MODBUS_RD_COMMAND_DETAIL,
 };
-
-
-typedef struct {
-  unsigned int index ;                  // command index
-  unsigned int scale;
-  unsigned int offset;
-} ETMEthernetCalToGUI;
-
-
 
 
 #define ETH_GUI_MESSAGE_BUFFER_SIZE   16
@@ -228,12 +234,12 @@ static unsigned char GetNextSendIndex(void) {
 }
 
 
-#define SIZE_BOARD_MIRROR    104
-#define SIZE_DEBUG_DATA      80
-
+#define SIZE_BOARD_MIRROR    (sizeof(ETMCanBoardData) - 8) // 72
+#define SIZE_DEBUG_DATA      sizeof(ETMCanBoardDebuggingData)
+#define SIZE_ECB_DATA        sizeof(TYPE_ECB_DATA)
 
 static void PrepareTXMessage(ETMModbusTXData *tx_data, unsigned char data_type) {
-  // DPARKER REMOVE pulse_index as it is not needed as far as I can tell
+  // DPARKER what is pulse_index for
   static unsigned char pulse_index = 0;        // index for eash tracking
   static unsigned transaction_number = 0; // Index for each transaction
 
@@ -288,17 +294,27 @@ static void PrepareTXMessage(ETMModbusTXData *tx_data, unsigned char data_type) 
       tx_data->tx_ready = 1;
       break;
 
-      /*
-      case MODBUS_WR_TARGET_CURRENT:
+    case MODBUS_WR_TARGET_CURRENT:
       tx_data->data_ptr = (unsigned char *)&local_data_mirror[ETM_CAN_ADDR_TARGET_CURRENT_BOARD];
       tx_data->data_length = SIZE_BOARD_MIRROR;
       tx_data->tx_ready = 1;
       break;
-      */
-    
+
+    case MODBUS_WR_DOSE_MONITOR:
+      tx_data->data_ptr = (unsigned char *)&local_data_mirror[ETM_CAN_ADDR_TARGET_CURRENT_BOARD];
+      tx_data->data_length = 0;
+      tx_data->tx_ready = 0;
+      break;
+
+    case MODBUS_WR_PFN_BOARD:
+      tx_data->data_ptr = (unsigned char *)&local_data_mirror[ETM_CAN_ADDR_TARGET_CURRENT_BOARD];
+      tx_data->data_length = 0;
+      tx_data->tx_ready = 0;
+      break;
+      
     case MODBUS_WR_ETHERNET:
       tx_data->data_ptr = (unsigned char *)&ecb_data;
-      tx_data->data_length = SIZE_BOARD_MIRROR;
+      tx_data->data_length = SIZE_ECB_DATA;
       tx_data->tx_ready = 1;
       break;
     
@@ -312,12 +328,7 @@ static void PrepareTXMessage(ETMModbusTXData *tx_data, unsigned char data_type) 
       tx_data->tx_ready = 1;
       break;
       
-    case MODBUS_WR_CAL_DATA:
-      // FUTURE USE OF CALIBRATION DATA
-      tx_data->data_length = 0;
-      tx_data->tx_ready = 0;
-      break;
-
+      // DPARKER WILL THIS TRANSMIT WRAP PROPERLY????
     case MODBUS_WR_EVENTS:
       tx_data->tx_ready = 0;
       if (NewMessageInEventLog()) {
@@ -330,56 +341,52 @@ static void PrepareTXMessage(ETMModbusTXData *tx_data, unsigned char data_type) 
     case MODBUS_WR_PULSE_LOG:
       // DPARKER - Test the pulse log
       // DPARKER - I Don't think that pulse index is needed
-      //pulse_index++;  // overflows at 255
+      pulse_index++;  // overflows at 255
       if (pulse_log_buffer_select == SEND_BUFFER_A) {
 	tx_data->data_ptr = (unsigned char *)&pulse_log_data_buffer_a;
       } else {
 	tx_data->data_ptr = (unsigned char *)&pulse_log_data_buffer_b;
       }
       tx_data->data_length = PULSE_LOG_BUFFER_SIZE * sizeof(TYPE_PULSE_ENTRY);
-      //tx_data->data_length = 0;
       tx_data->tx_ready = 1;
       break;
 
-      /*
-      
     case MODBUS_WR_SCOPE_A:
       tx_data->data_length = 0;
-      tx_data->data_ptr = (unsigned char *)&local_data_ecb; // DUMMY LOCATION
+      tx_data->data_ptr = (unsigned char *)&debug_data_ecb; // DUMMY LOCATION
       tx_data->tx_ready = 0;
       break;
 
     case MODBUS_WR_SCOPE_B:
       tx_data->data_length = 0;
-      tx_data->data_ptr = (unsigned char *)&local_data_ecb; // DUMMY LOCATION
+      tx_data->data_ptr = (unsigned char *)&debug_data_ecb; // DUMMY LOCATION
       tx_data->tx_ready = 0;
       break;
 
     case MODBUS_WR_SCOPE_HV:
       tx_data->data_length = 0;
-      tx_data->data_ptr = (unsigned char *)&local_data_ecb; // DUMMY LOCATION
+      tx_data->data_ptr = (unsigned char *)&debug_data_ecb; // DUMMY LOCATION
       tx_data->tx_ready = 0;
       break;
 
     case MODBUS_WR_SCOPE_MAGNETRON_CURRENT:
       tx_data->data_length = 0;
-      tx_data->data_ptr = (unsigned char *)&local_data_ecb; // DUMMY LOCATION
+      tx_data->data_ptr = (unsigned char *)&debug_data_ecb; // DUMMY LOCATION
       tx_data->tx_ready = 0;
       break;
 
     case MODBUS_RD_COMMAND_DETAIL:
-      tx_data->data_ptr = (unsigned char *)&local_data_ecb;  // Dummy data location so that we don't crash the processor if this gets executed for some reason
+      tx_data->data_ptr = (unsigned char *)&debug_data_ecb;  // Dummy data location so that we don't crash the processor if this gets executed for some reason
       tx_data->data_length = 0;
       tx_data->tx_ready = 1;
       break;
     
       default: // move to the next for now, ignore some boards
       tx_data->data_length = 0;
-      tx_data->data_ptr = (unsigned char *)&local_data_ecb; // DUMMY LOCATION
+      tx_data->data_ptr = (unsigned char *)&debug_data_ecb; // DUMMY LOCATION
       tx_data->tx_ready = 0;
       break;
 
-      */
     }
 
 

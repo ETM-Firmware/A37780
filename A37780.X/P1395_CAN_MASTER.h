@@ -3,7 +3,7 @@
 
 
 #include "P1395_CAN_CORE.h"  // This is needed for status register deffenition
-
+#include "ETM_LINAC_MODBUS.h"
 
 
 

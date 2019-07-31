@@ -49,6 +49,7 @@
         <linkerTool>
           <linkerLibItems>
             <linkerLibFileItem>../../ETM_LIBRARY/Version_05/lib/ETM_CORE_30F6014A.a</linkerLibFileItem>
+            <linkerLibFileItem>../../ETM_LIBRARY/Version_05/lib/ETM_TCPModbus_30F6014A_24J600.a</linkerLibFileItem>
           </linkerLibItems>
         </linkerTool>
         <archiverTool>

@@ -114,7 +114,7 @@ typedef struct {
 
   unsigned int            connection_timeout;                // On the ECB this is used to flag if the board connection has timed out or not.
   unsigned long           time_last_status_message_recieved; // On the ECB this is used to track the last time a status message was recieved from this board.  
-  
+  unsigned int            spare;
   //unsigned int            cmd_data[12];     // On the ECB, this stores data to be sent to the slave boards, on slave boards, this stores the data recieved from ECB
                                             // This should be read only to the user application program
 } ETMCanBoardData;
