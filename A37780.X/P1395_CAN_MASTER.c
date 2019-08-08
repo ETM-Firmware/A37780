@@ -187,6 +187,30 @@ void ETMCanMasterInitialize(unsigned int requested_can_port, unsigned long fcy, 
     // Use CAN2
     // DPARKER THIS IS NOT IMPLIMENTED YET
   }
+
+  // DPARKER placing data for debugging ethernet.
+  local_data_mirror[ETM_CAN_ADDR_HV_LAMBDA_BOARD].log_data[0] = 0;
+  local_data_mirror[ETM_CAN_ADDR_HV_LAMBDA_BOARD].log_data[1] = 1;
+  local_data_mirror[ETM_CAN_ADDR_HV_LAMBDA_BOARD].log_data[2] = 2;
+  local_data_mirror[ETM_CAN_ADDR_HV_LAMBDA_BOARD].log_data[3] = 3;
+  local_data_mirror[ETM_CAN_ADDR_HV_LAMBDA_BOARD].log_data[4] = 4;
+  local_data_mirror[ETM_CAN_ADDR_HV_LAMBDA_BOARD].log_data[5] = 5;
+  local_data_mirror[ETM_CAN_ADDR_HV_LAMBDA_BOARD].log_data[6] = 6;
+  local_data_mirror[ETM_CAN_ADDR_HV_LAMBDA_BOARD].log_data[7] = 7;
+  local_data_mirror[ETM_CAN_ADDR_HV_LAMBDA_BOARD].log_data[8] = 8;
+  local_data_mirror[ETM_CAN_ADDR_HV_LAMBDA_BOARD].log_data[9] = 9;
+  local_data_mirror[ETM_CAN_ADDR_HV_LAMBDA_BOARD].log_data[10] = 10;
+
+
+
+  debug_data_slave_mirror.debug_reg[0] = 0;
+  debug_data_slave_mirror.debug_reg[1] = 1;
+  debug_data_slave_mirror.debug_reg[2] = 2;
+  debug_data_slave_mirror.debug_reg[3] = 3;
+  debug_data_slave_mirror.debug_reg[4] = 4;
+  debug_data_slave_mirror.debug_reg[5] = 5;
+  debug_data_slave_mirror.debug_reg[6] = 6;
+  debug_data_slave_mirror.debug_reg[7] = 7;
 }
 
 #define SYNC_MESSAGE_MAX_TRANSMISSION_PERIOD               50  // 50mS.  If a sync message has not been sent by user code (following a trigger or change in sync control bits) one will be sent by the can module
@@ -206,7 +230,7 @@ void ETMCanMasterDoCan(void) {
   LocalUpdateSlaveNotReady();
 
   if (sync_message.sync_0_control_word.sync_F_clear_debug_data) {
-    LocalClearDebug();
+    //LocalClearDebug();
   }
   
   // DPARKER SET TO RUN ONCE EVERY 100mS
@@ -251,7 +275,7 @@ static void LocalTransmitSync(void) {
 
 static void LocalTransmitToSlave(unsigned int cmd_id, unsigned int word_3, unsigned int word_2, unsigned int word_1, unsigned int word_0) {
   ETMCanMessage can_message;
-  if (cmd_id > 0xFF) {
+  if (cmd_id > 0x3F) {
     // DPARKER add debug data
     return;
   }
@@ -278,7 +302,7 @@ static void LocalTimedTransmit(void) {
     if (transmit_message_select_counter >= 7) {
       transmit_message_select_counter = 0;
     }
-    
+
     switch (transmit_message_select_counter) 
       {
       case 0x0:
@@ -341,6 +365,7 @@ static void LocalTimedTransmit(void) {
 	// Don't send out anything
 	break;
       }
+
   }
 }
 
@@ -367,11 +392,15 @@ void ETMCanMasterSendSlaveRAMDebugLocations(unsigned int board_id, unsigned int 
 }
 
 void ETMCanMasterSendSlaveEEPROMDebug(unsigned int board_id, unsigned int eeprom_register) {
-  LocalTransmitToSlave(ETM_CAN_CMD_ID_SET_EEPROM_DEBUG, board_id, 0, 0, eeprom_register);
+  LocalTransmitToSlave(ETM_CAN_CMD_ID_SET_EEPROM_DEBUG, board_id, eeprom_register, 0, 0);
 }  
 
 void ETMCanMasterSendDiscreteCMD(unsigned int discrete_cmd_id) {
   LocalTransmitToSlave(ETM_CAN_CMD_ID_DISCRETE_CMD, discrete_cmd_id, 0, 0, 0);
+}
+
+void ETMCanMasterSendSlaveClearDebug(void) {
+  LocalTransmitToSlave(ETM_CAN_CMD_ID_CLEAR_DEBUG, 0, 0, 0, 0);
 }
 
 unsigned int ETMCanMasterCheckResetActive(void) {
@@ -446,7 +475,7 @@ static void LocalReceiveSlaveStatus(ETMCanMessage* message_ptr) {
   ETMCanStatusRegister status_message;
   unsigned int source_board;
 
-  source_board = (message_ptr->identifier >> 3);
+  source_board = (message_ptr->identifier >> 2);
   source_board &= 0x000F;
 
   if (source_board > NUMBER_OF_DATA_MIRRORS) {
@@ -931,7 +960,7 @@ static void LocalReceiveLogData(void) {
     
     if (log_id <= 0x07) {
       // This is board data that is always up to date on the ECB.  In needs to be stored in RAM
-      LocalLogDataFromSlave(log_id, board_id, next_message.word3, next_message.word2, next_message.word2, next_message.word0);
+      LocalLogDataFromSlave(log_id, board_id, next_message.word3, next_message.word2, next_message.word1, next_message.word0);
       
     } else if (log_id <= 0x0F) {
       // Pulse by Pulse logging
@@ -944,7 +973,7 @@ static void LocalReceiveLogData(void) {
     } else if (log_id <= 0x3F) {
       // Board specific Debugging/Calibration Data, only store if this board is selected
       if (board_id == etm_can_active_debugging_board_id) {
-	LocalLogDebugDataFromSlave(log_id, board_id, next_message.word3, next_message.word2, next_message.word2, next_message.word0);
+	LocalLogDebugDataFromSlave(log_id, board_id, next_message.word3, next_message.word2, next_message.word1, next_message.word0);
       }
     }
   }
@@ -972,25 +1001,19 @@ static void LocalLogDataFromSlave(unsigned int data_log_id, unsigned int board_i
     return;
   }
   
-  register_to_write = (unsigned int*)&local_data_mirror[board_id];
-  register_to_write += data_log_id*4;
+  register_to_write = (unsigned int*)&local_data_mirror[board_id].log_data;
+  register_to_write += 4*data_log_id;
 
-  
-  *register_to_write = data_3;
-
-  register_to_write++;
-  *register_to_write = data_2;
-
-  register_to_write++;
-  *register_to_write = data_1;
-
-  register_to_write++;
   *register_to_write = data_0;
-  /*
-    DPARKER WORK out the register address offset base on the board ID AND Log ID
+  register_to_write++;
+
+  *register_to_write = data_1;
+  register_to_write++;
+
+  *register_to_write = data_2;
+  register_to_write++;
     
-  */
-  
+  *register_to_write = data_3;
 }
 
 
@@ -1046,7 +1069,9 @@ static void LocalLogDebugDataFromSlave(unsigned int data_log_id, unsigned int bo
 
 
 
-
+void ETMCanMasterClearECBDebug(void) {
+  LocalClearDebug();
+}
 
 
 static void LocalClearDebug(void) {
@@ -1059,6 +1084,8 @@ static void LocalClearDebug(void) {
     *reset_data_ptr = 0;
     reset_data_ptr++;
   }
+  // DPARKER reload any data from initialization????
+
 }
 
 
@@ -1138,11 +1165,11 @@ void DoCanInterrupt(void) {
       // It should get executed Immediately
 
       ClrWdt();
-      ETMCanRXMessage(&can_message, CXRX1CON_ptr);
+      ETMCanRXMessage(&can_message, CXRX0CON_ptr);
       LocalReceiveSlaveStatus(&can_message);
       debug_data_ecb.can_rx_0_filt_1++;
     }
-    *CXINTF_ptr &= RX1_INT_FLAG_BIT; // Clear the RX1 Interrupt Flag
+    *CXINTF_ptr &= RX0_INT_FLAG_BIT; // Clear the RX1 Interrupt Flag
   }
   
   if (*CXRX1CON_ptr & BUFFER_FULL_BIT) { 
@@ -1151,7 +1178,7 @@ void DoCanInterrupt(void) {
        This is a data log message
     */
     debug_data_ecb.can_rx_1_filt_2++;
-    ETMCanRXMessageBuffer(&etm_can_master_rx_data_log_buffer, CXRX0CON_ptr);
+    ETMCanRXMessageBuffer(&etm_can_master_rx_data_log_buffer, CXRX1CON_ptr);
     *CXINTF_ptr &= RX1_INT_FLAG_BIT; // Clear the RX1 Interrupt Flag
   }
 

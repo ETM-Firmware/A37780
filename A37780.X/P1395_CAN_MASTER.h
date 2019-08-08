@@ -34,6 +34,10 @@ void ETMCanMasterSetActiveDebuggingBoardID(unsigned int save_debug_data_from_thi
 */
 
 
+void ETMCanMasterClearECBDebug(void);
+/*
+  Clears the debug info for the ECB
+*/
 
 void ETMCanMasterSendSlaveResetMCU(unsigned int board_id);
 void ETMCanMasterSendSlaveLoadDefaultEEpromData(unsigned int board_id);
@@ -42,6 +46,7 @@ void ETMCanMasterSendSlaveCalibrationPair(unsigned int board_id, unsigned int ca
 void ETMCanMasterSendSlaveRAMDebugLocations(unsigned int board_id, unsigned int address_A, unsigned int address_B, unsigned int address_C);
 void ETMCanMasterSendSlaveEEPROMDebug(unsigned int board_id, unsigned int eeprom_register);
 void ETMCanMasterSendDiscreteCMD(unsigned int discrete_cmd_id);
+void ETMCanMasterSendSlaveClearDebug(void);
 
 
 

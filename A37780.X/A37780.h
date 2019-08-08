@@ -480,7 +480,8 @@ typedef struct {
 
   unsigned int shutdown_counter;
 
-  unsigned int dose_level;
+  unsigned char dose_level;
+  unsigned char pulse_counter;
 
   unsigned int single_dual_energy_mode_selection;
 

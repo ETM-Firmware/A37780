@@ -110,9 +110,10 @@ static void AddMessageFromGUI(unsigned char * buffer_ptr) {
   }
   
   eth_message_from_GUI[eth_message_from_GUI_put_index].index = (*buffer_ptr << 8) | *(buffer_ptr + 1);
-  eth_message_from_GUI[eth_message_from_GUI_put_index].data_2 = (*(buffer_ptr + 2) << 8) | *(buffer_ptr + 3);
-  eth_message_from_GUI[eth_message_from_GUI_put_index].data_1 = (*(buffer_ptr + 4) << 8) | *(buffer_ptr + 5);
-  eth_message_from_GUI[eth_message_from_GUI_put_index].data_0 = (*(buffer_ptr + 6) << 8) | *(buffer_ptr + 7);
+  eth_message_from_GUI[eth_message_from_GUI_put_index].data_3 = (*(buffer_ptr + 2) << 8) | *(buffer_ptr + 3);
+  eth_message_from_GUI[eth_message_from_GUI_put_index].data_2 = (*(buffer_ptr + 4) << 8) | *(buffer_ptr + 5);
+  eth_message_from_GUI[eth_message_from_GUI_put_index].data_1 = (*(buffer_ptr + 6) << 8) | *(buffer_ptr + 7);
+  eth_message_from_GUI[eth_message_from_GUI_put_index].data_0 = (*(buffer_ptr + 8) << 8) | *(buffer_ptr + 9);
   
   eth_message_from_GUI_put_index++;
   eth_message_from_GUI_put_index &= 0xF;
@@ -210,6 +211,11 @@ void SetActiveDebuggingID(unsigned char modbus_index) {
     case MODBUS_WR_ETHERNET:
       etm_can_active_debugging_board_id = ETM_CAN_ADDR_ETHERNET_BOARD;
       break;
+
+    default:
+      etm_can_active_debugging_board_id = ETM_CAN_ADDR_ETHERNET_BOARD;
+      break;
+      
     }
 }
 
@@ -234,7 +240,7 @@ static unsigned char GetNextSendIndex(void) {
 }
 
 
-#define SIZE_BOARD_MIRROR    (sizeof(ETMCanBoardData) - 8) // 72
+#define SIZE_BOARD_MIRROR    (sizeof(ETMCanBoardData) - 6) // 72
 #define SIZE_DEBUG_DATA      sizeof(ETMCanBoardDebuggingData)
 #define SIZE_ECB_DATA        sizeof(TYPE_ECB_DATA)
 

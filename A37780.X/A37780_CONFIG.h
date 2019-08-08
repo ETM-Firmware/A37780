@@ -33,7 +33,7 @@
 
 #define DEFAULT_HV_LAMBDA_SET_POINT                               14000
 #define DEFAULT_ELECTROMAGNET_CURRENT                             15200
-#define DEFAULT_GUN_DRIVER_PULSE_TOP                                840
+#define DEFAULT_GUN_DRIVER_PULSE_TOP                               8000
 #define DEFAULT_GUN_DRIVER_CATHODE_VOLTAGE                        20000
 #define DEFAULT_SPARE_TRIGGER                                         0
 #define DEFAULT_PULSE_SYNC_AFC_SAMPLE_DELAY                         200
@@ -42,7 +42,7 @@
 #define DEFAULT_GUN_STOP_MIN_DOSE                                   160
 #define DEFAULT_GUN_STOP_MAX_DOSE                                   200
 #define DEFAULT_AFC_HOME_POSITION                                 18000
-#define DEFAULT_PRF                                                  10 
+#define DEFAULT_PRF                                                 500 
   
 
 #define DEFAULT_MAGNETRON_HEATER_CURRENT                          10600
@@ -89,7 +89,7 @@
 
 #define DEFAULT_HV_LAMBDA_SET_POINT                               14000
 #define DEFAULT_ELECTROMAGNET_CURRENT                             15200
-#define DEFAULT_GUN_DRIVER_PULSE_TOP                                840
+#define DEFAULT_GUN_DRIVER_PULSE_TOP                               8000
 #define DEFAULT_GUN_DRIVER_CATHODE_VOLTAGE                        20000
 #define DEFAULT_SPARE_TRIGGER                                         0
 #define DEFAULT_PULSE_SYNC_AFC_SAMPLE_DELAY                         200
@@ -98,7 +98,7 @@
 #define DEFAULT_GUN_STOP_MIN_DOSE                                   160
 #define DEFAULT_GUN_STOP_MAX_DOSE                                   200
 #define DEFAULT_AFC_HOME_POSITION                                 18000
-#define DEFAULT_PRF                                                  10 
+#define DEFAULT_PRF                                                 500 
   
 
 #define DEFAULT_MAGNETRON_HEATER_CURRENT                          10600
@@ -107,9 +107,9 @@
 #define DEFAULT_HVPS_TRIGGER_STOP                                     0
 #define DEFAULT_TRIGGER_PFN                                           0
 #define DEFAULT_TRIGGER_MAGNETRON_AND_TARGET_CURRENT_START          200
-#define DEFAULT_TRIGGER_MAGNETRON_AND_TARGET_CURRENT_STOP             0
+#define DEFAULT_TRIGGER_MAGNETRON_AND_TARGET_CURRENT_STOP           400
 #define DEFAULT_X_RAY_ON_TIME                                       100
-#define DEFAULT_GUN_BIAS_VOLTAGE                                      0
+#define DEFAULT_GUN_BIAS_VOLTAGE                                  40000
 #define DEFAULT_AFT_CONTROL_VOLTAGE                                2000
 
 

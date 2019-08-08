@@ -990,12 +990,12 @@ void DoA37780(void) {
   if (ETMTickRunOnceEveryNMilliseconds(1000, &one_second_holding_var)) {
 
     // DPARKER add code detect a PFN FAN FAULT
+
     if (PIN_OUT_LED_GRN_OPERATION) {
       PIN_OUT_LED_GRN_OPERATION = 0;
     } else {
       PIN_OUT_LED_GRN_OPERATION = 1;
     }
-
     
     // Update the thyratron warmup counters
     if (!_FAULT_PFN_FAN_FAULT) {
@@ -1360,6 +1360,9 @@ void InitializeA37780(void) {
   _NOT_LOGGED_REGISTER = 0;
 
   global_data_A37780.access_mode = ACCESS_MODE_DEFAULT;
+  // DPARKER CHange acces mode back to default
+  global_data_A37780.access_mode = ACCESS_MODE_ETM;
+  
   global_data_A37780.service_passcode = ACCESS_MODE_SERVICE_PW_FIXED;
   global_data_A37780.etm_passcode = ACCESS_MODE_ETM_PW_FIXED;
   
@@ -1455,7 +1458,7 @@ ETMAnalogInputInitialize(&analog_5V_vmon,
       if (ETMEEPromReadPage(EEPROM_PAGE_ECB_COUNTER_AND_TIMERS, (unsigned int*)&ecb_data.system_counters) == 0) {
 	// We need to create an error
 	_FAULT_EEPROM_FAILURE = 1;
-	global_data_A37780.eeprom_failure = 1;
+	global_data_A37780.eeprom_failure |= 0b0000000010000000;
       }
     }
   }
@@ -1560,7 +1563,7 @@ void ReadSystemConfigurationFromEEProm(void) {
     if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_SETTING_0, (unsigned int*)&ecb_data.dose_level_0) == 0) {
       if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_SETTING_0, (unsigned int*)&ecb_data.dose_level_0) == 0) {
 	_FAULT_EEPROM_FAILURE = 1;
-	global_data_A37780.eeprom_failure = 1;
+	global_data_A37780.eeprom_failure |= 0b0000000000000001;
       }
     }
   }
@@ -1570,7 +1573,7 @@ void ReadSystemConfigurationFromEEProm(void) {
     if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_SETTING_1, (unsigned int*)&ecb_data.dose_level_1) == 0) {
       if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_SETTING_1, (unsigned int*)&ecb_data.dose_level_1) == 0) {
 	_FAULT_EEPROM_FAILURE = 1;
-	global_data_A37780.eeprom_failure = 1;
+	global_data_A37780.eeprom_failure |= 0b0000000000000010;
       }
     }
   }
@@ -1580,7 +1583,7 @@ void ReadSystemConfigurationFromEEProm(void) {
     if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_SETTING_2, (unsigned int*)&ecb_data.dose_level_2) == 0) {
       if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_SETTING_2, (unsigned int*)&ecb_data.dose_level_2) == 0) {
 	_FAULT_EEPROM_FAILURE = 1;
-	global_data_A37780.eeprom_failure = 1;
+	global_data_A37780.eeprom_failure |= 0b0000000000000100;
       }
     }
   }
@@ -1590,7 +1593,7 @@ void ReadSystemConfigurationFromEEProm(void) {
     if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_SETTING_3, (unsigned int*)&ecb_data.dose_level_3) == 0) {
       if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_SETTING_3, (unsigned int*)&ecb_data.dose_level_3) == 0) {
 	_FAULT_EEPROM_FAILURE = 1;
-	global_data_A37780.eeprom_failure = 1;
+	global_data_A37780.eeprom_failure |= 0b0000000000001000;
       }
     }
   }
@@ -1600,7 +1603,7 @@ void ReadSystemConfigurationFromEEProm(void) {
     if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_SETTING_ALL, (unsigned int*)&ecb_data.dose_level_all) == 0) {
       if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_SETTING_ALL, (unsigned int*)&ecb_data.dose_level_all) == 0) {
 	_FAULT_EEPROM_FAILURE = 1;
-	global_data_A37780.eeprom_failure = 1;
+	global_data_A37780.eeprom_failure |= 0b0000000000010000;
       }
     }
   }
@@ -1610,7 +1613,7 @@ void ReadSystemConfigurationFromEEProm(void) {
     if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_COMPENSATION_A, (unsigned int*)&ecb_data.dose_compensation_group_a) == 0) {
       if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_COMPENSATION_A, (unsigned int*)&ecb_data.dose_compensation_group_a) == 0) {
 	_FAULT_EEPROM_FAILURE = 1;
-	global_data_A37780.eeprom_failure = 1;
+	global_data_A37780.eeprom_failure |= 0b0000000000100000;
       }
     }
   }
@@ -1620,7 +1623,7 @@ void ReadSystemConfigurationFromEEProm(void) {
     if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_COMPENSATION_B, (unsigned int*)&ecb_data.dose_compensation_group_b) == 0) {
       if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_COMPENSATION_B, (unsigned int*)&ecb_data.dose_compensation_group_b) == 0) {
 	_FAULT_EEPROM_FAILURE = 1;
-	global_data_A37780.eeprom_failure = 1;
+	global_data_A37780.eeprom_failure |= 0b0000000001000000;
       }
     }
   }
@@ -1669,13 +1672,13 @@ void LoadDefaultSystemCalibrationToEEProm(void) {
   eeprom_data[3]  = DEFAULT_GUN_DRIVER_CATHODE_VOLTAGE;
   eeprom_data[4]  = DEFAULT_SPARE_TRIGGER;
   eeprom_data[5]  = DEFAULT_PULSE_SYNC_AFC_SAMPLE_DELAY;
-  eeprom_data[6]  = 0;
-  eeprom_data[7]  = DEFAULT_GUN_START_MIN_DOSE;
-  eeprom_data[8]  = DEFAULT_GUN_START_MAX_DOSE;
-  eeprom_data[9]  = DEFAULT_GUN_STOP_MIN_DOSE;
-  eeprom_data[10] = DEFAULT_GUN_STOP_MAX_DOSE;
-  eeprom_data[11] = DEFAULT_AFC_HOME_POSITION;
-  eeprom_data[12] = DEFAULT_PRF;
+  eeprom_data[6]  = DEFAULT_GUN_START_MIN_DOSE;
+  eeprom_data[7]  = DEFAULT_GUN_START_MAX_DOSE;
+  eeprom_data[8]  = DEFAULT_GUN_STOP_MIN_DOSE;
+  eeprom_data[9]  = DEFAULT_GUN_STOP_MAX_DOSE;
+  eeprom_data[10] = DEFAULT_AFC_HOME_POSITION;
+  eeprom_data[11] = DEFAULT_PRF;
+  eeprom_data[12] = 0;
   eeprom_data[13] = 0;
   eeprom_data[14] = 0;
   
@@ -1700,6 +1703,25 @@ void LoadDefaultSystemCalibrationToEEProm(void) {
     }
   }
 
+  if (ETMEEPromWritePageWithConfirmation(EEPROM_PAGE_ECB_DOSE_SETTING_2, &eeprom_data[0]) == 0) {
+    if (ETMEEPromWritePageWithConfirmation(EEPROM_PAGE_ECB_DOSE_SETTING_2, &eeprom_data[0]) == 0) {
+      if (ETMEEPromWritePageWithConfirmation(EEPROM_PAGE_ECB_DOSE_SETTING_2, &eeprom_data[0]) == 0) {
+	// Unable to write the data
+	global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;
+      }
+    }
+  }
+
+
+  if (ETMEEPromWritePageWithConfirmation(EEPROM_PAGE_ECB_DOSE_SETTING_3, &eeprom_data[0]) == 0) {
+    if (ETMEEPromWritePageWithConfirmation(EEPROM_PAGE_ECB_DOSE_SETTING_3, &eeprom_data[0]) == 0) {
+      if (ETMEEPromWritePageWithConfirmation(EEPROM_PAGE_ECB_DOSE_SETTING_3, &eeprom_data[0]) == 0) {
+	// Unable to write the data
+	global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;
+      }
+    }
+  }
+  
   
   eeprom_data[0]  = DEFAULT_MAGNETRON_HEATER_CURRENT;
   eeprom_data[1]  = DEFAULT_GUN_DRIVER_HEATER_CURRENT;
@@ -1780,8 +1802,39 @@ void LoadDefaultSystemCalibrationToEEProm(void) {
     }
   }
 
+  eeprom_data[0]  = 0;
+  eeprom_data[1]  = 0;
+  eeprom_data[2]  = 0;
+  eeprom_data[3]  = 0;
+  eeprom_data[4]  = 0;
+  eeprom_data[5]  = 0;
+  eeprom_data[6]  = 0;
+  eeprom_data[7]  = 0;
+  eeprom_data[8]  = 0;
+  eeprom_data[9]  = 0;
+  eeprom_data[10] = 0;
+  eeprom_data[11] = 0;
+  eeprom_data[12] = 0;
+  eeprom_data[13] = 0;
+  eeprom_data[14] = 0;
 
-
+  if (ETMEEPromWritePageWithConfirmation(EEPROM_PAGE_ECB_DOSE_COMPENSATION_A, &eeprom_data[0]) == 0) {
+    if (ETMEEPromWritePageWithConfirmation(EEPROM_PAGE_ECB_DOSE_COMPENSATION_A, &eeprom_data[0]) == 0) {
+      if (ETMEEPromWritePageWithConfirmation(EEPROM_PAGE_ECB_DOSE_COMPENSATION_A, &eeprom_data[0]) == 0) {
+	// Unable to write the data
+	global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;
+      }
+    }
+  }
+  
+  if (ETMEEPromWritePageWithConfirmation(EEPROM_PAGE_ECB_DOSE_COMPENSATION_B, &eeprom_data[0]) == 0) {
+    if (ETMEEPromWritePageWithConfirmation(EEPROM_PAGE_ECB_DOSE_COMPENSATION_B, &eeprom_data[0]) == 0) {
+      if (ETMEEPromWritePageWithConfirmation(EEPROM_PAGE_ECB_DOSE_COMPENSATION_B, &eeprom_data[0]) == 0) {
+	// Unable to write the data
+	global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;
+      }
+    }
+  }
 
 }
 
@@ -1978,8 +2031,11 @@ void LoadDefaultSystemCalibrationToEEProm(void) {
 #define REGISTER_ETM_ECB_LOAD_DEFAULT_SYSTEM_SETTINGS_AND_REBOOT 0x1206
 #define REGISTER_ETM_SET_REVISION_AND_SERIAL_NUMBER 0x1207
 #define REGISTER_ETM_SAVE_CURRENT_SETTINGS_TO_FACTORY_DEFAULT 0x1208
-
-
+#define REGISTER_ETM_SLAVE_LOAD_DEFAULT_CALIBRATION 0x1209
+#define REGISTER_DEBUG_SET_RAM_DEBUG 0x1210
+#define REGISTER_DEBUG_SET_EEPROM_DEBUG 0x1211
+#define REGISTER_ETM_SLAVE_SET_CALIBRATION_PAIR 0x1212
+#define REGISTER_ETM_CLEAR_DEBUG 0x1213
 
 void ExecuteEthernetCommand(void) {
   ETMEthernetMessageFromGUI next_message;
@@ -2018,13 +2074,13 @@ void ExecuteEthernetCommand(void) {
     break;
     
   case REGISTER_SET_ACCESS_MODE_SERVICE:
-    if (next_message.data_2 == global_data_A37780.service_passcode) {
+    if (next_message.data_3 == global_data_A37780.service_passcode) {
       global_data_A37780.access_mode = ACCESS_MODE_SERVICE;
     }
     break;
     
   case REGISTER_SET_ACCESS_MODE_ETM:
-    if (next_message.data_2 == global_data_A37780.etm_passcode) {
+    if (next_message.data_3 == global_data_A37780.etm_passcode) {
       global_data_A37780.access_mode = ACCESS_MODE_ETM;
     }
     break;
@@ -2040,9 +2096,9 @@ void ExecuteEthernetCommand(void) {
       
     case REGISTER_ETM_SYSTEM_SERIAL_NUMBER:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;
-      ecb_data.config.system_serial_letter           = next_message.data_2;
-      ecb_data.config.system_serial_number_high_word = next_message.data_1;
-      ecb_data.config.system_serial_number_low_word  = next_message.data_0;
+      ecb_data.config.system_serial_letter           = next_message.data_3;
+      ecb_data.config.system_serial_number_high_word = next_message.data_2;
+      ecb_data.config.system_serial_number_low_word  = next_message.data_1;
       if (ETMEEPromWritePageWithConfirmation(EEPROM_PAGE_ECB_BOARD_CONFIGURATION, (unsigned int*)&ecb_data.config)) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
       }
@@ -2077,10 +2133,10 @@ void ExecuteEthernetCommand(void) {
 
     case REGISTER_DEBUG_RESET_MCU:
       if ((ecb_data.config.control_state < STATE_DRIVE_UP) || (ecb_data.config.control_state > STATE_XRAY_ON)) {
-	if (next_message.data_2 == ETM_CAN_ADDR_ETHERNET_BOARD) {
+	if (next_message.data_3 == ETM_CAN_ADDR_ETHERNET_BOARD) {
 	  __asm__ ("Reset");
 	} else {
-	  ETMCanMasterSendSlaveResetMCU(next_message.data_2);
+	  ETMCanMasterSendSlaveResetMCU(next_message.data_3);
 	}
       }
       break;
@@ -2096,21 +2152,46 @@ void ExecuteEthernetCommand(void) {
       */
 
     case REGISTER_ETM_SET_REVISION_AND_SERIAL_NUMBER:
-      if (next_message.data_2 == ETM_CAN_ADDR_ETHERNET_BOARD) {
+      if (next_message.data_3 == ETM_CAN_ADDR_ETHERNET_BOARD) {
 	// Set the rev and S/N for the ECB
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;
-	ecb_data.config.ecb_serial_number_low_word  = next_message.data_1;
-	ecb_data.config.ecb_agile_rev_ASCII_x2      = next_message.data_0;
+	ecb_data.config.ecb_serial_number_low_word  = next_message.data_2;
+	ecb_data.config.ecb_agile_rev_ASCII_x2      = next_message.data_1;
 	if (ETMEEPromWritePageWithConfirmation(EEPROM_PAGE_ECB_BOARD_CONFIGURATION, (unsigned int*)&ecb_data.config)) {
 	  // The update was successful
 	  global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
 	}
       } else {
 	// Set the rev and S/N for the Slave
-	ETMCanMasterSendSlaveRevAndSerialNumber(next_message.data_2, next_message.data_1, next_message.data_0);
+	ETMCanMasterSendSlaveRevAndSerialNumber(next_message.data_3, next_message.data_2, next_message.data_1);
       }
       break;
 
+    case REGISTER_ETM_SLAVE_LOAD_DEFAULT_CALIBRATION:
+      if (next_message.data_3 == ETM_CAN_ADDR_ETHERNET_BOARD) {
+	// DO NOTHING
+      } else {
+	ETMCanMasterSendSlaveLoadDefaultEEpromData(next_message.data_3);
+      }
+      break;
+
+    case REGISTER_ETM_SLAVE_SET_CALIBRATION_PAIR:
+      if (next_message.data_3 == ETM_CAN_ADDR_ETHERNET_BOARD) {
+	// DO NOTHING
+      } else {
+	ETMCanMasterSendSlaveCalibrationPair(next_message.data_3, next_message.data_2, next_message.data_1, next_message.data_0);
+      }
+      break;
+
+    case REGISTER_ETM_CLEAR_DEBUG:
+      if (next_message.data_3 == ETM_CAN_ADDR_ETHERNET_BOARD) {
+	ETMCanMasterClearECBDebug();
+	// DO NOTHING
+      } else {
+	ETMCanMasterSendSlaveClearDebug();
+      }
+      break;
+      
 
     case REGISTER_ETM_SAVE_CURRENT_SETTINGS_TO_FACTORY_DEFAULT:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;
@@ -2131,97 +2212,97 @@ void ExecuteEthernetCommand(void) {
       
     case REGISTER_HVPS_SET_POINT_DOSE_0:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 0), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 0), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_0.hvps_set_point = next_message.data_2;
+	ecb_data.dose_level_0.hvps_set_point = next_message.data_3;
       }
       break;
 
     case REGISTER_ELECTROMAGNET_CURRENT_DOSE_0:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 1), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 1), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_0.electromagnet_set_point = next_message.data_2;
+	ecb_data.dose_level_0.electromagnet_set_point = next_message.data_3;
       }
       break;
     
     case REGISTER_GUN_DRIVER_PULSE_TOP_VOLTAGE_DOSE_0:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 2), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 2), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_0.gun_driver_pulse_top_voltage = next_message.data_2;
+	ecb_data.dose_level_0.gun_driver_pulse_top_voltage = next_message.data_3;
       }
       break;
 
     case REGISTER_GUN_DRIVER_CATHODE_VOLTAGE_DOSE_0:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 3), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 3), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_0.gun_driver_cathode_voltage = next_message.data_2;
+	ecb_data.dose_level_0.gun_driver_cathode_voltage = next_message.data_3;
       }
       break;
 
     case REGISTER_TRIGGER_SPARE_DOSE_0:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 4), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 4), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_0.trigger_delay_spare = next_message.data_2;
+	ecb_data.dose_level_0.trigger_delay_spare = next_message.data_3;
       }
       break;
       
     case REGISTER_TRIGGER_AFC_DOSE_0:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 5), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 5), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_0.trigger_delay_afc = next_message.data_2;
+	ecb_data.dose_level_0.trigger_delay_afc = next_message.data_3;
       }
       break;
 
     case REGISTER_TRIGGER_GRID_START_MIN_DOSE_0:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 6), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 6), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_0.trigger_grid_start_min_dose = next_message.data_2;
+	ecb_data.dose_level_0.trigger_grid_start_min_dose = next_message.data_3;
       }
       break;
         
     case REGISTER_TRIGGER_GRID_START_MAX_DOSE_0:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 7), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 7), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_0.trigger_grid_start_max_dose = next_message.data_2;
+	ecb_data.dose_level_0.trigger_grid_start_max_dose = next_message.data_3;
       }
       break;
 
     case REGISTER_TRIGGER_GRID_STOP_MIN_DOSE_0:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 8), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 8), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_0.trigger_grid_stop_min_dose = next_message.data_2;
+	ecb_data.dose_level_0.trigger_grid_stop_min_dose = next_message.data_3;
       }
       break;    
       
     case REGISTER_TRIGGER_GRID_STOP_MAX_DOSE_0:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 9), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 9), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_0.trigger_grid_stop_max_dose = next_message.data_2;
+	ecb_data.dose_level_0.trigger_grid_stop_max_dose = next_message.data_3;
       }
       break;    
 
     case REGISTER_AFC_HOME_POSITION_DOSE_0:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 10), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 10), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_0.afc_home_poistion = next_message.data_2;
+	ecb_data.dose_level_0.afc_home_poistion = next_message.data_3;
       }
       break;
 
     case REGISTER_SELF_TRIGGER_PRF_DOSE_0:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 11), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 11), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_0.self_trigger_prf = next_message.data_2;
+	ecb_data.dose_level_0.self_trigger_prf = next_message.data_3;
       }
       break;
 
@@ -2230,97 +2311,97 @@ void ExecuteEthernetCommand(void) {
 
     case REGISTER_HVPS_SET_POINT_DOSE_1:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 0), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_1<<4) + 0), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_1.hvps_set_point = next_message.data_2;
+	ecb_data.dose_level_1.hvps_set_point = next_message.data_3;
       }
       break;
 
     case REGISTER_ELECTROMAGNET_CURRENT_DOSE_1:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 1), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_1<<4) + 1), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_1.electromagnet_set_point = next_message.data_2;
+	ecb_data.dose_level_1.electromagnet_set_point = next_message.data_3;
       }
       break;
     
     case REGISTER_GUN_DRIVER_PULSE_TOP_VOLTAGE_DOSE_1:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 2), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_1<<4) + 2), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_1.gun_driver_pulse_top_voltage = next_message.data_2;
+	ecb_data.dose_level_1.gun_driver_pulse_top_voltage = next_message.data_3;
       }
       break;
 
     case REGISTER_GUN_DRIVER_CATHODE_VOLTAGE_DOSE_1:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 3), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_1<<4) + 3), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_1.gun_driver_cathode_voltage = next_message.data_2;
+	ecb_data.dose_level_1.gun_driver_cathode_voltage = next_message.data_3;
       }
       break;
 
     case REGISTER_TRIGGER_SPARE_DOSE_1:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 4), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_1<<4) + 4), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_1.trigger_delay_spare = next_message.data_2;
+	ecb_data.dose_level_1.trigger_delay_spare = next_message.data_3;
       }
       break;
       
     case REGISTER_TRIGGER_AFC_DOSE_1:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 5), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_1<<4) + 5), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_1.trigger_delay_afc = next_message.data_2;
+	ecb_data.dose_level_1.trigger_delay_afc = next_message.data_3;
       }
       break;
 
     case REGISTER_TRIGGER_GRID_START_MIN_DOSE_1:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 6), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_1<<4) + 6), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_1.trigger_grid_start_min_dose = next_message.data_2;
+	ecb_data.dose_level_1.trigger_grid_start_min_dose = next_message.data_3;
       }
       break;
         
     case REGISTER_TRIGGER_GRID_START_MAX_DOSE_1:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 7), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_1<<4) + 7), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_1.trigger_grid_start_max_dose = next_message.data_2;
+	ecb_data.dose_level_1.trigger_grid_start_max_dose = next_message.data_3;
       }
       break;
 
     case REGISTER_TRIGGER_GRID_STOP_MIN_DOSE_1:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 8), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_1<<4) + 8), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_1.trigger_grid_stop_min_dose = next_message.data_2;
+	ecb_data.dose_level_1.trigger_grid_stop_min_dose = next_message.data_3;
       }
       break;    
       
     case REGISTER_TRIGGER_GRID_STOP_MAX_DOSE_1:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 9), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_1<<4) + 9), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_1.trigger_grid_stop_max_dose = next_message.data_2;
+	ecb_data.dose_level_1.trigger_grid_stop_max_dose = next_message.data_3;
       }
       break;    
 
     case REGISTER_AFC_HOME_POSITION_DOSE_1:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 10), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_1<<4) + 10), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_1.afc_home_poistion = next_message.data_2;
+	ecb_data.dose_level_1.afc_home_poistion = next_message.data_3;
       }
       break;
 
     case REGISTER_SELF_TRIGGER_PRF_DOSE_1:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 11), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_1<<4) + 11), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_1.self_trigger_prf = next_message.data_2;
+	ecb_data.dose_level_1.self_trigger_prf = next_message.data_3;
       }
       break;
 
@@ -2329,97 +2410,97 @@ void ExecuteEthernetCommand(void) {
 
     case REGISTER_HVPS_SET_POINT_DOSE_2:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 0), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_2<<4) + 0), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_2.hvps_set_point = next_message.data_2;
+	ecb_data.dose_level_2.hvps_set_point = next_message.data_3;
       }
       break;
 
     case REGISTER_ELECTROMAGNET_CURRENT_DOSE_2:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 1), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_2<<4) + 1), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_2.electromagnet_set_point = next_message.data_2;
+	ecb_data.dose_level_2.electromagnet_set_point = next_message.data_3;
       }
       break;
     
     case REGISTER_GUN_DRIVER_PULSE_TOP_VOLTAGE_DOSE_2:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 2), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_2<<4) + 2), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_2.gun_driver_pulse_top_voltage = next_message.data_2;
+	ecb_data.dose_level_2.gun_driver_pulse_top_voltage = next_message.data_3;
       }
       break;
 
     case REGISTER_GUN_DRIVER_CATHODE_VOLTAGE_DOSE_2:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 3), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_2<<4) + 3), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_2.gun_driver_cathode_voltage = next_message.data_2;
+	ecb_data.dose_level_2.gun_driver_cathode_voltage = next_message.data_3;
       }
       break;
 
     case REGISTER_TRIGGER_SPARE_DOSE_2:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 4), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_2<<4) + 4), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_2.trigger_delay_spare = next_message.data_2;
+	ecb_data.dose_level_2.trigger_delay_spare = next_message.data_3;
       }
       break;
       
     case REGISTER_TRIGGER_AFC_DOSE_2:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 5), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_2<<4) + 5), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_2.trigger_delay_afc = next_message.data_2;
+	ecb_data.dose_level_2.trigger_delay_afc = next_message.data_3;
       }
       break;
 
     case REGISTER_TRIGGER_GRID_START_MIN_DOSE_2:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 6), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_2<<4) + 6), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_2.trigger_grid_start_min_dose = next_message.data_2;
+	ecb_data.dose_level_2.trigger_grid_start_min_dose = next_message.data_3;
       }
       break;
         
     case REGISTER_TRIGGER_GRID_START_MAX_DOSE_2:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 7), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_2<<4) + 7), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_2.trigger_grid_start_max_dose = next_message.data_2;
+	ecb_data.dose_level_2.trigger_grid_start_max_dose = next_message.data_3;
       }
       break;
 
     case REGISTER_TRIGGER_GRID_STOP_MIN_DOSE_2:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 8), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_2<<4) + 8), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_2.trigger_grid_stop_min_dose = next_message.data_2;
+	ecb_data.dose_level_2.trigger_grid_stop_min_dose = next_message.data_3;
       }
       break;    
       
     case REGISTER_TRIGGER_GRID_STOP_MAX_DOSE_2:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 9), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_2<<4) + 9), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_2.trigger_grid_stop_max_dose = next_message.data_2;
+	ecb_data.dose_level_2.trigger_grid_stop_max_dose = next_message.data_3;
       }
       break;    
 
     case REGISTER_AFC_HOME_POSITION_DOSE_2:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 10), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_2<<4) + 10), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_2.afc_home_poistion = next_message.data_2;
+	ecb_data.dose_level_2.afc_home_poistion = next_message.data_3;
       }
       break;
 
     case REGISTER_SELF_TRIGGER_PRF_DOSE_2:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 11), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_2<<4) + 11), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_2.self_trigger_prf = next_message.data_2;
+	ecb_data.dose_level_2.self_trigger_prf = next_message.data_3;
       }
       break;
 
@@ -2427,97 +2508,97 @@ void ExecuteEthernetCommand(void) {
       
     case REGISTER_HVPS_SET_POINT_DOSE_3:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 0), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_3<<4) + 0), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_3.hvps_set_point = next_message.data_2;
+	ecb_data.dose_level_3.hvps_set_point = next_message.data_3;
       }
       break;
 
     case REGISTER_ELECTROMAGNET_CURRENT_DOSE_3:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 1), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_3<<4) + 1), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_3.electromagnet_set_point = next_message.data_2;
+	ecb_data.dose_level_3.electromagnet_set_point = next_message.data_3;
       }
       break;
     
     case REGISTER_GUN_DRIVER_PULSE_TOP_VOLTAGE_DOSE_3:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 2), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_3<<4) + 2), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_3.gun_driver_pulse_top_voltage = next_message.data_2;
+	ecb_data.dose_level_3.gun_driver_pulse_top_voltage = next_message.data_3;
       }
       break;
 
     case REGISTER_GUN_DRIVER_CATHODE_VOLTAGE_DOSE_3:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 3), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_3<<4) + 3), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_3.gun_driver_cathode_voltage = next_message.data_2;
+	ecb_data.dose_level_3.gun_driver_cathode_voltage = next_message.data_3;
       }
       break;
 
     case REGISTER_TRIGGER_SPARE_DOSE_3:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 4), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_3<<4) + 4), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_3.trigger_delay_spare = next_message.data_2;
+	ecb_data.dose_level_3.trigger_delay_spare = next_message.data_3;
       }
       break;
       
     case REGISTER_TRIGGER_AFC_DOSE_3:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 5), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_3<<4) + 5), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_3.trigger_delay_afc = next_message.data_2;
+	ecb_data.dose_level_3.trigger_delay_afc = next_message.data_3;
       }
       break;
 
     case REGISTER_TRIGGER_GRID_START_MIN_DOSE_3:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 6), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_3<<4) + 6), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_3.trigger_grid_start_min_dose = next_message.data_2;
+	ecb_data.dose_level_3.trigger_grid_start_min_dose = next_message.data_3;
       }
       break;
         
     case REGISTER_TRIGGER_GRID_START_MAX_DOSE_3:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 7), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_3<<4) + 7), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_3.trigger_grid_start_max_dose = next_message.data_2;
+	ecb_data.dose_level_3.trigger_grid_start_max_dose = next_message.data_3;
       }
       break;
 
     case REGISTER_TRIGGER_GRID_STOP_MIN_DOSE_3:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 8), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_3<<4) + 8), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_3.trigger_grid_stop_min_dose = next_message.data_2;
+	ecb_data.dose_level_3.trigger_grid_stop_min_dose = next_message.data_3;
       }
       break;    
       
     case REGISTER_TRIGGER_GRID_STOP_MAX_DOSE_3:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 9), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_3<<4) + 9), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_3.trigger_grid_stop_max_dose = next_message.data_2;
+	ecb_data.dose_level_3.trigger_grid_stop_max_dose = next_message.data_3;
       }
       break;    
 
     case REGISTER_AFC_HOME_POSITION_DOSE_3:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 10), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_3<<4) + 10), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_3.afc_home_poistion = next_message.data_2;
+	ecb_data.dose_level_3.afc_home_poistion = next_message.data_3;
       }
       break;
 
     case REGISTER_SELF_TRIGGER_PRF_DOSE_3:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_0<<4) + 11), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_3<<4) + 11), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_3.self_trigger_prf = next_message.data_2;
+	ecb_data.dose_level_3.self_trigger_prf = next_message.data_3;
       }
       break;
       
@@ -2526,101 +2607,101 @@ void ExecuteEthernetCommand(void) {
     
     case REGISTER_MAGNETRON_HEATER_CURRENT_DOSE_ALL:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_ALL<<4) + 0), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_ALL<<4) + 0), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_all.magnetron_heater_current_at_standby = next_message.data_2;
+	ecb_data.dose_level_all.magnetron_heater_current_at_standby = next_message.data_3;
       }
       break;
 
     case REGISTER_GUN_DRIVER_HEATER_VOLTAGE_DOSE_ALL:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_ALL<<4) + 1), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_ALL<<4) + 1), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_all.gun_driver_heater_voltage = next_message.data_2;
+	ecb_data.dose_level_all.gun_driver_heater_voltage = next_message.data_3;
       }
       break;
 
     case REGISTER_TRIGGER_HVPS_START_DOSE_ALL:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_ALL<<4) + 2), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_ALL<<4) + 2), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_all.trigger_hvps_start = next_message.data_2;
+	ecb_data.dose_level_all.trigger_hvps_start = next_message.data_3;
       }
       break;
 
     case REGISTER_TRIGGER_HVPS_STOP_DOSE_ALL:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_ALL<<4) + 3), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_ALL<<4) + 3), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_all.trigger_hvps_stop = next_message.data_2;
+	ecb_data.dose_level_all.trigger_hvps_stop = next_message.data_3;
       }
       break;
     
     case REGISTER_TRIGGER_PFN_DOSE_ALL:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_ALL<<4) + 4), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_ALL<<4) + 4), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_all.trigger_pfn = next_message.data_2;
+	ecb_data.dose_level_all.trigger_pfn = next_message.data_3;
       }
       break;
 
     case REGISTER_TRIGGER_MAGNETRON_AND_TARGET_CURRENT_START_DOSE_ALL:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_ALL<<4) + 5), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_ALL<<4) + 5), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_all.trigger_magnetron_and_target_current_start = next_message.data_2;
+	ecb_data.dose_level_all.trigger_magnetron_and_target_current_start = next_message.data_3;
       }
       break;
 
     case REGISTER_TRIGGER_MAGNETRON_AND_TARGET_CURRENT_STOP_DOSE_ALL:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_ALL<<4) + 6), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_ALL<<4) + 6), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_all.trigger_magnetron_and_target_current_stop = next_message.data_2;
+	ecb_data.dose_level_all.trigger_magnetron_and_target_current_stop = next_message.data_3;
       }
       break;
 
     case REGISTER_X_RAY_ON_TIME_DOSE_ALL:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_ALL<<4) + 7), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_ALL<<4) + 7), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_all.x_ray_run_time_in_automated_mode = next_message.data_2;
+	ecb_data.dose_level_all.x_ray_run_time_in_automated_mode = next_message.data_3;
       }
       break;
 
     case REGISTER_GUN_BIAS_VOLTAGE_DOSE_ALL:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_ALL<<4) + 8), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_ALL<<4) + 8), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_all.gun_driver_bias_voltage = next_message.data_2;
+	ecb_data.dose_level_all.gun_driver_bias_voltage = next_message.data_3;
       }
       break;
 
     case REGISTER_AFC_AFT_CONTROL_VOLTAGE_DOSE_ALL:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_ALL<<4) + 9), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_ALL<<4) + 9), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_all.afc_aux_control_or_offset = next_message.data_2;
+	ecb_data.dose_level_all.afc_aux_control_or_offset = next_message.data_3;
       }
       break;
 
     case REGISTER_CMD_AFC_MANUAL_TARGET_POSITION:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;    
-      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_ALL<<4) + 10), next_message.data_2) == 0xFFFF) {
+      if (ETMEEPromWriteWordWithConfirmation(((EEPROM_PAGE_ECB_DOSE_SETTING_ALL<<4) + 10), next_message.data_3) == 0xFFFF) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_SUCCESSFUL;
-	ecb_data.dose_level_all.afc_aux_control_or_offset = next_message.data_2;
+	ecb_data.dose_level_all.afc_manual_target_position = next_message.data_3;
       }
       break;
 
       
     case REGISTER_REMOTE_IP_ADDRESS:
-      //ETMEEPromWriteWord(next_message.index, next_message.data_2);
-      //ETMEEPromWriteWord(next_message.index + 1, next_message.data_1);
+      //ETMEEPromWriteWord(next_message.index, next_message.data_3);
+      //ETMEEPromWriteWord(next_message.index + 1, next_message.data_2);
       break;
       
     case REGISTER_IP_ADDRESS:
-      //ETMEEPromWriteWord(next_message.index, next_message.data_2);
-      //ETMEEPromWriteWord(next_message.index + 1, next_message.data_1);
+      //ETMEEPromWriteWord(next_message.index, next_message.data_3);
+      //ETMEEPromWriteWord(next_message.index + 1, next_message.data_2);
       break;
       
     case REGISTER_CMD_AFC_SELECT_AFC_MODE:
@@ -2637,7 +2718,7 @@ void ExecuteEthernetCommand(void) {
 			  ETM_CAN_REGISTER_COOLING_CMD_SF6_LEAK_LIMIT_OVERRIDE,
 			  0,
 			  0,
-			  next_message.data_2);
+			  next_message.data_3);
       break;
       */
       
@@ -2678,7 +2759,7 @@ void ExecuteEthernetCommand(void) {
       /*
 	case REGISTER_ETM_ECB_SEND_SLAVE_RELOAD_EEPROM_WITH_DEFAULTS:
 	break;
-       */
+      */
       
     case REGISTER_SYSTEM_ENABLE_HIGH_SPEED_LOGGING:
       // Clear the Logging registers
@@ -2691,6 +2772,23 @@ void ExecuteEthernetCommand(void) {
       ETMCanMasterSyncSet(SYNC_BIT_ENABLE_PULSE_LOG, 0);
       break;
 
+    case REGISTER_DEBUG_SET_RAM_DEBUG:
+      if (next_message.data_3 == ETM_CAN_ADDR_ETHERNET_BOARD) {
+	// Debug Ram Loactions on the ECB
+      } else {
+	// DEbug Ram Loactions on a slave
+	ETMCanMasterSendSlaveRAMDebugLocations(next_message.data_3, next_message.data_2, next_message.data_1, next_message.data_0);}
+      break;
+
+    case REGISTER_DEBUG_SET_EEPROM_DEBUG:
+      if (next_message.data_3 == ETM_CAN_ADDR_ETHERNET_BOARD) {
+	// Debug Ram Loactions on the ECB
+      } else {
+	ETMCanMasterSendSlaveEEPROMDebug(next_message.data_3, next_message.data_2);
+      }
+	break;
+      
+      
     }
   }
 }
@@ -2901,6 +2999,7 @@ void __attribute__((interrupt, shadow, no_auto_psv)) _INT1Interrupt(void) {
       // This was a negative going edge transistion
       // Start Charging the power supply
       // Start the power supply timer
+      // Send out the sync message
       T2CON = T2CON_VALUE_TIMER_ON_SCALE_1_1;
       TMR2  = 0;
       PR2   = T2_CHARGE_TIME;
@@ -2950,6 +3049,7 @@ void __attribute__((interrupt, shadow, no_auto_psv)) _INT1Interrupt(void) {
 	_INT1IE = 0;
 	_INT1EP = 1;  // Negative Transition
 	_INT1IE = 1;
+	ETMCanMasterSendSyncMessage(global_data_A37780.dose_level, global_data_A37780.pulse_counter++);
       } else {
 	fault_data.trigger_not_valid_count++;
       }

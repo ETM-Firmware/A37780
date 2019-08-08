@@ -4,6 +4,7 @@
 
 typedef struct {
   unsigned int index ;                  // command index
+  unsigned int data_3;
   unsigned int data_2;
   unsigned int data_1;
   unsigned int data_0;

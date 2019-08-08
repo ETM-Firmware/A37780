@@ -457,7 +457,7 @@ unsigned int ETMCanBufferNotEmpty(ETMCanMessageBuffer* buffer_ptr);
 //                                               0bXXX0000NNNNNNNX0
 #define ETM_CAN_MASTER_MSG_FILTER_RF0            0b0000100000000000  // This is used to recieve RTSP response - Action TBD
 //                                               0bXXX0001NNAAAAAX0
-#define ETM_CAN_MASTER_MSG_FILTER_RF1            0b0000010000000000  // This will accept STATUS message from slaves.  Needs to be or'ed with ECB ADDRESS << 2
+#define ETM_CAN_MASTER_MSG_FILTER_RF1            0b0000001000000000  // This will accept STATUS message from slaves.  Needs to be or'ed with ECB ADDRESS << 2
 
 // RX1  Mask and Filters
 //                                               0bXXX1PPPPPPAAAAX0
@@ -508,7 +508,7 @@ unsigned int ETMCanBufferNotEmpty(ETMCanMessageBuffer* buffer_ptr);
 
 
 
-//#define CXCFG2_VALUE                             0b0000001110010001      // This will created a bit timing of 10x TQ
+#define CXCFG2_VALUE                             0b0000001110010001      // This will created a bit timing of 10x TQ
 /*
   Can Bit Timing
   Syncchronization segment     - 1xTq
@@ -531,7 +531,7 @@ unsigned int ETMCanBufferNotEmpty(ETMCanMessageBuffer* buffer_ptr);
   Maximum Jump Width(CXCFG1)   - 1xTq
 
 */
-#define CXCFG2_VALUE                             0b0000001110011010      // This will created a bit timing of 12x TQ
+//#define CXCFG2_VALUE                             0b0000001110011010      // This will created a bit timing of 12x TQ
 /*
   DPARKER -  In order to get the CAN network to work it was necessary to increase the time of each bit.
   With testing we may be able to get the values back down to 10xTQ which is 1Mbit
@@ -571,6 +571,7 @@ unsigned int ETMCanBufferNotEmpty(ETMCanMessageBuffer* buffer_ptr);
 #define ETM_CAN_CMD_ID_SET_RAM_DEBUG                    0x04
 #define ETM_CAN_CMD_ID_SET_EEPROM_DEBUG                 0x05
 #define ETM_CAN_CMD_ID_SET_IGNORE_FAULTS                0x06
+#define ETM_CAN_CMD_ID_CLEAR_DEBUG                      0x07
 
 #define ETM_CAN_CMD_ID_HVPS_SET_POINTS                  0x10
 #define ETM_CAN_CMD_ID_MAGNET_SET_POINTS                0x11
