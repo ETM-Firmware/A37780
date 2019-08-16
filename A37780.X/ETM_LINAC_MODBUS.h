@@ -26,4 +26,6 @@ void SendToEventLog(unsigned int event_type);
 
 //void ETMLinacModusGetActiveDebuggingID(void);
 
+extern unsigned int sync_time_10ms_units;
+
 #endif

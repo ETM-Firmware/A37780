@@ -4,6 +4,10 @@
 #include "ETM_TICK.h"
 #include "ETM_LINAC_MODBUS.h"
 
+
+#include "ETM_LINAC_COM.h"
+
+
 #include "TCPmodbus.h"
 
 #include <string.h>
@@ -11,12 +15,13 @@
 #include "ETM_LINAC_COM.h"
 
 unsigned int etm_can_active_debugging_board_id;
+unsigned int sync_time_10ms_units;
 
 typedef struct {
   unsigned int event_time;   // This is the lower 16 bit of the second counter, GUI will have to re-align the higher 16 bits
   unsigned int event_id;     // This tells what the event was
-  unsigned int event_data_a; // Additional Data about the event
-  unsigned int event_data_b; // Additional Data about the event
+  //unsigned int event_data_a; // Additional Data about the event
+  //unsigned int event_data_b; // Additional Data about the event
 } TYPE_EVENT;
 
 
@@ -29,15 +34,15 @@ typedef struct {
 
 TYPE_EVENT_LOG event_log;
 
-TYPE_PULSE_ENTRY pulse_log_data_buffer_a[PULSE_LOG_BUFFER_SIZE];
-TYPE_PULSE_ENTRY pulse_log_data_buffer_b[PULSE_LOG_BUFFER_SIZE];
+//TYPE_PULSE_ENTRY pulse_log_data_buffer_a[PULSE_LOG_BUFFER_SIZE];
+//TYPE_PULSE_ENTRY pulse_log_data_buffer_b[PULSE_LOG_BUFFER_SIZE];
 
 
 void SendToEventLog(unsigned int log_id) {
-  event_log.event_data[event_log.write_index].event_time   = 0;  // DPARKER get the lower 16 bits of the current time
+  event_log.event_data[event_log.write_index].event_time   = sync_time_10ms_units;
   event_log.event_data[event_log.write_index].event_id     = log_id;
-  event_log.event_data[event_log.write_index].event_data_a = 0;
-  event_log.event_data[event_log.write_index].event_data_b = 0;
+  //event_log.event_data[event_log.write_index].event_data_a = 0;
+  //event_log.event_data[event_log.write_index].event_data_b = 0;
   event_log.write_index++;
   event_log.write_index &= (EVENT_LOG_SIZE-1);
   if (event_log.write_index == event_log.read_index) {
@@ -160,63 +165,20 @@ static unsigned int EventLogMessageSize(void) {
   unsigned int events_to_send = 0;
 
   if (event_log.read_index > event_log.write_index) {
-    events_to_send = 128 - event_log.read_index; 
+    events_to_send = EVENT_LOG_SIZE - event_log.read_index; 
   } else {
     events_to_send = event_log.write_index - event_log.read_index;
   }
-  if (events_to_send >= 64) {
-    // Max of 64 events per send
-    events_to_send = 64;
+  if (events_to_send >= (EVENT_LOG_SIZE >> 1)) {
+    // Max of half of event Log Size
+    events_to_send = EVENT_LOG_SIZE >> 1;
   }	
   
   // Update the read_index
   event_log.read_index += events_to_send;
-  event_log.read_index &= 0x7F;
+  event_log.read_index &= (EVENT_LOG_SIZE - 1);
 
-  return (events_to_send << 3);
-}
-
-
-void SetActiveDebuggingID(unsigned char modbus_index) {
-  switch (modbus_index) 
-    {
-    case MODBUS_WR_HVLAMBDA:
-      etm_can_active_debugging_board_id = ETM_CAN_ADDR_HV_LAMBDA_BOARD;
-      break;
-      
-    case MODBUS_WR_ION_PUMP:
-      etm_can_active_debugging_board_id = ETM_CAN_ADDR_ION_PUMP_BOARD;
-      break;
-      
-    case MODBUS_WR_AFC:
-      etm_can_active_debugging_board_id = ETM_CAN_ADDR_AFC_CONTROL_BOARD;
-      break;
-      
-    case MODBUS_WR_COOLING:
-      etm_can_active_debugging_board_id = ETM_CAN_ADDR_COOLING_INTERFACE_BOARD;
-      break;
-      
-    case MODBUS_WR_HTR_MAGNET:
-      etm_can_active_debugging_board_id = ETM_CAN_ADDR_HEATER_MAGNET_BOARD;
-      break;
-      
-    case MODBUS_WR_GUN_DRIVER:
-      etm_can_active_debugging_board_id = ETM_CAN_ADDR_GUN_DRIVER_BOARD;
-      break;
-      
-    case MODBUS_WR_MAGNETRON_CURRENT:
-      etm_can_active_debugging_board_id = ETM_CAN_ADDR_MAGNETRON_CURRENT_BOARD;
-      break;
-      
-    case MODBUS_WR_ETHERNET:
-      etm_can_active_debugging_board_id = ETM_CAN_ADDR_ETHERNET_BOARD;
-      break;
-
-    default:
-      etm_can_active_debugging_board_id = ETM_CAN_ADDR_ETHERNET_BOARD;
-      break;
-      
-    }
+  return (events_to_send << 2);
 }
 
 
@@ -348,12 +310,14 @@ static void PrepareTXMessage(ETMModbusTXData *tx_data, unsigned char data_type) 
       // DPARKER - Test the pulse log
       // DPARKER - I Don't think that pulse index is needed
       pulse_index++;  // overflows at 255
-      if (pulse_log_buffer_select == SEND_BUFFER_A) {
-	tx_data->data_ptr = (unsigned char *)&pulse_log_data_buffer_a;
+      if (pulse_log.data_a_ready_to_send) {
+	tx_data->data_ptr = (unsigned char *)&pulse_log.data_a;
+	pulse_log.data_a_ready_to_send = 0;
       } else {
-	tx_data->data_ptr = (unsigned char *)&pulse_log_data_buffer_b;
+	tx_data->data_ptr = (unsigned char *)&pulse_log.data_b;
+	pulse_log.data_b_ready_to_send = 0;
       }
-      tx_data->data_length = PULSE_LOG_BUFFER_SIZE * sizeof(TYPE_PULSE_ENTRY);
+      tx_data->data_length = PULSE_LOG_BUFFER_ENTRIES * sizeof(TYPE_PULSE_DATA);
       tx_data->tx_ready = 1;
       break;
 
@@ -398,10 +362,11 @@ static void PrepareTXMessage(ETMModbusTXData *tx_data, unsigned char data_type) 
 
   if (tx_data->tx_ready) {
 
+    // DPARKER - ADD some ethernet Debugging Info
+    
     transaction_number++;
     last_index_sent = data_type;
-    debug_data_ecb.debug_reg[13]++;  // Dparker move this to some debugging information
-    
+        
    // Prepare the header message
     tx_data->header_data[0] = (transaction_number >> 8) & 0xff;	    // transaction hi byte
     tx_data->header_data[1] = transaction_number & 0xff;	    // transaction lo byte
@@ -451,10 +416,10 @@ void ETMModbusApplicationSpecificTXData(ETMModbusTXData* tx_data_to_send) {
 
   send_message = 0;
 
-  if (pulse_log_ready_to_send) {
+  if (pulse_log.data_a_ready_to_send || pulse_log.data_b_ready_to_send) {
     modbus_tx_index = MODBUS_WR_PULSE_LOG;
     send_message = 1;
-    pulse_log_ready_to_send = 0;
+    //pulse_log_ready_to_send = 0;
   } else if (0) {
     // FUTURE Event log counter is greater than 32
   } else if (0) {
@@ -507,8 +472,13 @@ void ETMModbusApplicationSpecificRXData(unsigned char data_RX[]) {
     /* write commands return command count in the reference field */
     modbus_command_request = (data_RX[8] << 8) | data_RX[9];
   }
-    
-  SetActiveDebuggingID(data_RX[10]);
+
+  sync_time_10ms_units = (data_RX[8] << 8) + data_RX[11];
+  
+  etm_can_active_debugging_board_id = data_RX[10];
+  if (etm_can_active_debugging_board_id >= NUMBER_OF_DATA_MIRRORS ) {
+    etm_can_active_debugging_board_id = ETM_CAN_ADDR_ETHERNET_BOARD;
+  }
 }
 
 

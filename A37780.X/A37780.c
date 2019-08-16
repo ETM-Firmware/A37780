@@ -6,6 +6,18 @@
 #include "ETM_LINAC_MODBUS.h"
 
 
+unsigned int  persistent_data_reset_check_a __attribute__ ((persistent));
+unsigned int  persistent_data_reset_check_b __attribute__ ((persistent));
+
+#define PERSISTENT_RESET_CHECK_SYSTEM_RESART      0xAEF1
+#define PERSISTENT_RESET_CHECK_SYSTEM_RESART_XOR  0x510E
+#define PERSISTENT_RESET_CHECK_OTHER_RESET        0x1CC7
+#define PERSISTENT_RESET_CHECK_OTHER_RESET_XOR    0xE338
+
+
+#define RAM_SIZE_WORDS  4096
+
+unsigned int MCP23S18UpdateInputs(void);
 
 TYPE_ECB_DATA ecb_data;
 
@@ -21,13 +33,6 @@ void MCP23S18Setup(unsigned long pin_chip_select_not,
   BANK=0, All Inputs, No Inversion
 */
 
-
-unsigned long MCP23S18ReadInputs(void);
-/*
-  Returns the port vaules for portA and portB
-  High Byte = PortA
-  Low Byte  = PortB
-*/
 
 unsigned long mcp23S18_pin_chip_select_not;
 unsigned char mcp23S18_spi_port;
@@ -81,7 +86,7 @@ unsigned int mode_select_internal_trigger;  // DPARKER create structure for run 
 
 
 //TYPE_PUBLIC_ANALOG_INPUT analog_3_3V_vmon;
-TYPE_PUBLIC_ANALOG_INPUT analog_5V_vmon;
+//TYPE_PUBLIC_ANALOG_INPUT analog_5V_vmon;
 //unsigned int test_0;
 //unsigned int test_1;
 //unsigned int test_2;
@@ -131,8 +136,8 @@ unsigned int b_sent;
 
 
 // ------------------ PROCESSOR CONFIGURATION ------------------------//
-_FOSC(ECIO_PLL8 & CSW_FSCM_OFF);                                           // 10hz External Osc created 20Mhz FCY
-_FWDT(WDT_OFF & WDTPSA_512 & WDTPSB_8);                                    // 8 Second watchdog timer 
+_FOSC(ECIO_PLL8 & CSW_FSCM_OFF);                                          // 10Mhz External Osc created 20Mhz FCY
+_FWDT(WDT_ON & WDTPSA_512 & WDTPSB_16);                                   // 16 Second watchdog timer 
 _FBORPOR(PWRT_4 & NONE & PBOR_OFF & MCLR_EN);                             // 4ms Power up timer, Low Voltage Reset disabled
 _FBS(WR_PROTECT_BOOT_OFF & NO_BOOT_CODE & NO_BOOT_EEPROM & NO_BOOT_RAM);  // 
 _FSS(WR_PROT_SEC_OFF & NO_SEC_CODE & NO_SEC_EEPROM & NO_SEC_RAM);         //
@@ -270,7 +275,7 @@ RTC_DS3231 U6_DS3231;
 
 int main(void) {
   
-  ecb_data.config.control_state = STATE_STARTUP;
+  ecb_data.control_state = STATE_STARTUP;
   while (1) {
     DoStateMachine();
   }
@@ -280,7 +285,7 @@ int main(void) {
 
 void DoStateMachine(void) {
   
-  switch (ecb_data.config.control_state) {
+  switch (ecb_data.control_state) {
 
   case STATE_STARTUP:
     SendToEventLog(LOG_ID_ENTERED_STATE_STARTUP);
@@ -303,10 +308,11 @@ void DoStateMachine(void) {
     DisableTriggers();
     InitializeA37780();
     global_data_A37780.gun_heater_holdoff_timer = 0;
-    ecb_data.config.control_state = STATE_SAFETY_SELF_TEST;
+    ecb_data.control_state = STATE_SAFETY_SELF_TEST;
     SendToEventLog(LOG_ID_ENTERED_STATE_STARTUP);
     if (_STATUS_LAST_RESET_WAS_POWER_CYCLE) {
-      ETMCanMasterSyncSet(SYNC_BIT_CLEAR_DEBUG_DATA, 1);
+      ETMCanMasterClearECBDebug();
+      ETMCanMasterSendSlaveClearDebug();
     }
     break;
 
@@ -329,7 +335,7 @@ void DoStateMachine(void) {
     SetHVContactor(CONTACTOR_OPEN);
     SetGUNContactor(CONTACTOR_OPEN);
     DisableTriggers();
-    while (ecb_data.config.control_state == STATE_SAFETY_SELF_TEST) {
+    while (ecb_data.control_state == STATE_SAFETY_SELF_TEST) {
       /*
 	DPARKER - What to test here
 	
@@ -338,9 +344,9 @@ void DoStateMachine(void) {
 	I think the E-STOP needs to be tested every time an AC Contactor turns on
 	to verify it's state and all of the contact outputs make sense
       */
-
-      //ecb_data.config.control_state = STATE_WAITING_FOR_POWER_ON;
-      ecb_data.config.control_state = STATE_XRAY_ON;
+      // DPARKER need a ClrWdt() here/???
+      //ecb_data.control_state = STATE_WAITING_FOR_POWER_ON;
+      ecb_data.control_state = STATE_XRAY_ON;
     }
     break;
     
@@ -362,11 +368,12 @@ void DoStateMachine(void) {
     SetHVContactor(CONTACTOR_OPEN);
     SetGUNContactor(CONTACTOR_OPEN);
     DisableTriggers();
-    while (ecb_data.config.control_state == STATE_WAITING_FOR_POWER_ON) {
+    while (ecb_data.control_state == STATE_WAITING_FOR_POWER_ON) {
       DoA37780();
       FlashLeds();
+      ClrWdt();
       if (DISCRETE_INPUT_SYSTEM_ENABLE == ILL_SYSTEM_ENABLE) {
-	ecb_data.config.control_state = STATE_WAITING_FOR_INITIALIZATION;
+	ecb_data.control_state = STATE_WAITING_FOR_INITIALIZATION;
       }
     }
     break;
@@ -391,7 +398,7 @@ void DoStateMachine(void) {
     DisableTriggers();
     global_data_A37780.startup_counter = 0;
     // DPARKER ADD THE FRONT PANEL LIGHT CONTROLS
-    while (ecb_data.config.control_state == STATE_WAITING_FOR_INITIALIZATION) {
+    while (ecb_data.control_state == STATE_WAITING_FOR_INITIALIZATION) {
       DoA37780();
       FlashLeds();
 
@@ -403,7 +410,7 @@ void DoStateMachine(void) {
       */
       
       if ((ETMCanMasterCheckAllBoardsConfigured() == 0xFFFF) && (global_data_A37780.startup_counter >= 300)) {
-      	ecb_data.config.control_state = STATE_WARMUP;
+      	ecb_data.control_state = STATE_WARMUP;
 	SendToEventLog(LOG_ID_ALL_MODULES_CONFIGURED);
       }
     }
@@ -415,7 +422,6 @@ void DoStateMachine(void) {
   case STATE_WARMUP:
     // Note that the warmup timers start counting in "Waiting for Initialization"
     SendToEventLog(LOG_ID_ENTERED_STATE_WARMUP);
-    ETMCanMasterSyncSet(SYNC_BIT_CLEAR_DEBUG_DATA, 0);
     ETMCanMasterSyncSet(SYNC_BIT_RESET_ENABLE,0);
     ETMCanMasterSyncSet(SYNC_BIT_HV_DISABLE, 1);
     FRONT_PANEL_AC_POWER       = OLL_FRONT_PANEL_LIGHT_ON;
@@ -431,14 +437,14 @@ void DoStateMachine(void) {
     SetHVContactor(CONTACTOR_OPEN);
     SetGUNContactor(CONTACTOR_CLOSED);
     DisableTriggers();
-    while (ecb_data.config.control_state == STATE_WARMUP) {
+    while (ecb_data.control_state == STATE_WARMUP) {
       DoA37780();
       if (global_data_A37780.warmup_done) {
-	ecb_data.config.control_state = STATE_STANDBY;
+	ecb_data.control_state = STATE_STANDBY;
 	SendToEventLog(LOG_ID_WARMUP_DONE);
       }
       if (CheckWarmupFault()) {
-	ecb_data.config.control_state = STATE_FAULT_WARMUP;
+	ecb_data.control_state = STATE_FAULT_WARMUP;
       }
     }
     break;
@@ -446,7 +452,6 @@ void DoStateMachine(void) {
 
   case STATE_FAULT_WARMUP:
     SendToEventLog(LOG_ID_ENTERED_STATE_FAULT_WARMUP);
-    ETMCanMasterSyncSet(SYNC_BIT_CLEAR_DEBUG_DATA, 0);
     ETMCanMasterSyncSet(SYNC_BIT_RESET_ENABLE,1);
     ETMCanMasterSyncSet(SYNC_BIT_HV_DISABLE, 1);
     FRONT_PANEL_AC_POWER       = OLL_FRONT_PANEL_LIGHT_ON;
@@ -462,13 +467,13 @@ void DoStateMachine(void) {
     SetHVContactor(CONTACTOR_OPEN);
     SetGUNContactor(CONTACTOR_CLOSED);
     DisableTriggers();
-    while (ecb_data.config.control_state == STATE_FAULT_WARMUP) {
+    while (ecb_data.control_state == STATE_FAULT_WARMUP) {
       DoA37780();
       if (!CheckWarmupFault()) {
-	ecb_data.config.control_state = STATE_WARMUP;
+	ecb_data.control_state = STATE_WARMUP;
       }
       if (CheckWarmupFailure()) {
-	ecb_data.config.control_state = STATE_FAULT_SYSTEM;
+	ecb_data.control_state = STATE_FAULT_SYSTEM;
       }
     }
     break;
@@ -478,7 +483,6 @@ void DoStateMachine(void) {
     SendToEventLog(LOG_ID_ENTERED_STATE_STANDBY);
     ETMCanMasterSyncSet(SYNC_BIT_RESET_ENABLE, 0);
     ETMCanMasterSyncSet(SYNC_BIT_HV_DISABLE, 1);
-    ETMCanMasterSyncSet(SYNC_BIT_CLEAR_DEBUG_DATA, 0);
     FRONT_PANEL_AC_POWER       = OLL_FRONT_PANEL_LIGHT_ON;
     FRONT_PANEL_BEAM_ENABLE    = OLL_FRONT_PANEL_LIGHT_OFF;
     FRONT_PANEL_X_RAY_ON       = OLL_FRONT_PANEL_LIGHT_OFF;
@@ -492,16 +496,16 @@ void DoStateMachine(void) {
     SetHVContactor(CONTACTOR_OPEN);
     SetGUNContactor(CONTACTOR_CLOSED);
     DisableTriggers();
-    while (ecb_data.config.control_state == STATE_STANDBY) {
+    while (ecb_data.control_state == STATE_STANDBY) {
       DoA37780();
       if (BEAM_ENABLE_INPUT == ILL_BEAM_ENABLE) {
-	ecb_data.config.control_state = STATE_DRIVE_UP;
+	ecb_data.control_state = STATE_DRIVE_UP;
       }
       if (CheckStandbyFault()) {
-	ecb_data.config.control_state = STATE_FAULT_RESET;
+	ecb_data.control_state = STATE_FAULT_RESET;
       }
       if (CheckFaultLatching()) {
-	ecb_data.config.control_state = STATE_FAULT_HOLD;
+	ecb_data.control_state = STATE_FAULT_HOLD;
       }
     }
     break;
@@ -510,7 +514,6 @@ void DoStateMachine(void) {
   case STATE_DRIVE_UP:
     SendToEventLog(LOG_ID_ENTERED_STATE_DRIVE_UP);
     ETMCanMasterSyncSet(SYNC_BIT_RESET_ENABLE, 0);
-    ETMCanMasterSyncSet(SYNC_BIT_CLEAR_DEBUG_DATA, 0);
     ETMCanMasterSyncSet(SYNC_BIT_HV_DISABLE, 0);
     FRONT_PANEL_AC_POWER       = OLL_FRONT_PANEL_LIGHT_ON;
     FRONT_PANEL_BEAM_ENABLE    = OLL_FRONT_PANEL_LIGHT_OFF;
@@ -525,20 +528,20 @@ void DoStateMachine(void) {
     SetHVContactor(CONTACTOR_CLOSED);
     SetGUNContactor(CONTACTOR_CLOSED);
     DisableTriggers();
-    while (ecb_data.config.control_state == STATE_DRIVE_UP) {
+    while (ecb_data.control_state == STATE_DRIVE_UP) {
       DoA37780();
       if (!CheckHVOnFault()) {
-	ecb_data.config.control_state = STATE_READY;
+	ecb_data.control_state = STATE_READY;
       }
       if (BEAM_ENABLE_INPUT == ILL_BEAM_DISABLED) {
-	ecb_data.config.control_state = STATE_STANDBY;
+	ecb_data.control_state = STATE_STANDBY;
       }
       if (CheckStandbyFault()) {
 	global_data_A37780.drive_up_fault_counter++;
-	ecb_data.config.control_state = STATE_FAULT_RESET;
+	ecb_data.control_state = STATE_FAULT_RESET;
       }
       if (CheckFaultLatching()) {
-	ecb_data.config.control_state = STATE_FAULT_HOLD;
+	ecb_data.control_state = STATE_FAULT_HOLD;
       }
      }
     break;
@@ -547,7 +550,6 @@ void DoStateMachine(void) {
   case STATE_READY:
     SendToEventLog(LOG_ID_ENTERED_STATE_READY);
     ETMCanMasterSyncSet(SYNC_BIT_RESET_ENABLE, 0);
-    ETMCanMasterSyncSet(SYNC_BIT_CLEAR_DEBUG_DATA, 0);
     ETMCanMasterSyncSet(SYNC_BIT_HV_DISABLE, 0);
     FRONT_PANEL_AC_POWER       = OLL_FRONT_PANEL_LIGHT_ON;
     FRONT_PANEL_BEAM_ENABLE    = OLL_FRONT_PANEL_LIGHT_ON;
@@ -564,20 +566,20 @@ void DoStateMachine(void) {
     DisableTriggers();
     global_data_A37780.drive_up_fault_counter = 0;
     _STATUS_DRIVE_UP_TIMEOUT = 0;
-     while (ecb_data.config.control_state == STATE_READY) {
+     while (ecb_data.control_state == STATE_READY) {
       DoA37780();
       if (CheckXRayOn() == 1) {
-	ecb_data.config.control_state = STATE_XRAY_ON;
+	ecb_data.control_state = STATE_XRAY_ON;
       }
       if (BEAM_ENABLE_INPUT == ILL_BEAM_DISABLED) {
-	ecb_data.config.control_state = STATE_DRIVE_UP;
+	ecb_data.control_state = STATE_DRIVE_UP;
       }
       if (CheckHVOnFault()) {
-	ecb_data.config.control_state = STATE_FAULT_RESET;
+	ecb_data.control_state = STATE_FAULT_RESET;
 	global_data_A37780.high_voltage_on_fault_counter++;
       }
       if (CheckFaultLatching()) {
-	ecb_data.config.control_state = STATE_FAULT_HOLD;
+	ecb_data.control_state = STATE_FAULT_HOLD;
       }
      }
     break;
@@ -586,7 +588,6 @@ void DoStateMachine(void) {
   case STATE_XRAY_ON:
     SendToEventLog(LOG_ID_ENTERED_STATE_XRAY_ON);
     ETMCanMasterSyncSet(SYNC_BIT_RESET_ENABLE, 0);
-    ETMCanMasterSyncSet(SYNC_BIT_CLEAR_DEBUG_DATA, 0);
     ETMCanMasterSyncSet(SYNC_BIT_HV_DISABLE, 0);
     FRONT_PANEL_AC_POWER       = OLL_FRONT_PANEL_LIGHT_ON;
     FRONT_PANEL_BEAM_ENABLE    = OLL_FRONT_PANEL_LIGHT_ON;
@@ -606,16 +607,16 @@ void DoStateMachine(void) {
     SetTriggerTiming(TRIGGER_GRID_TRIGGER, 200, 400);
     SetTriggerTiming(TRIGGER_SPARE, 2, 502);
     global_data_A37780.high_voltage_on_fault_counter = 0;
-    while (ecb_data.config.control_state == STATE_XRAY_ON) {
+    while (ecb_data.control_state == STATE_XRAY_ON) {
       DoA37780();
       if (CheckXRayOn() == 0) {
-	//ecb_data.config.control_state = STATE_READY;
+	//ecb_data.control_state = STATE_READY;
       }
       if (BEAM_ENABLE_INPUT == ILL_BEAM_DISABLED) {
-	//ecb_data.config.control_state = STATE_READY;
+	//ecb_data.control_state = STATE_READY;
       }
       if (CheckHVOnFault()) {
-	//ecb_data.config.control_state = STATE_FAULT_HOLD;
+	//ecb_data.control_state = STATE_FAULT_HOLD;
       }
     }
     break;
@@ -624,7 +625,6 @@ void DoStateMachine(void) {
   case STATE_FAULT_SYSTEM:
     SendToEventLog(LOG_ID_ENTERED_STATE_FAULT_SYSTEM);
     ETMCanMasterSyncSet(SYNC_BIT_RESET_ENABLE, 0);
-    ETMCanMasterSyncSet(SYNC_BIT_CLEAR_DEBUG_DATA, 0);
     ETMCanMasterSyncSet(SYNC_BIT_HV_DISABLE, 1);
     FRONT_PANEL_AC_POWER       = OLL_FRONT_PANEL_LIGHT_ON;
     FRONT_PANEL_BEAM_ENABLE    = OLL_FRONT_PANEL_LIGHT_OFF;
@@ -639,11 +639,11 @@ void DoStateMachine(void) {
     SetHVContactor(CONTACTOR_OPEN);
     SetGUNContactor(CONTACTOR_OPEN);
     DisableTriggers();
-    while (ecb_data.config.control_state == STATE_FAULT_SYSTEM) {
+    while (ecb_data.control_state == STATE_FAULT_SYSTEM) {
       DoA37780();
       
       if (DISCRETE_INPUT_SYSTEM_ENABLE == !ILL_SYSTEM_ENABLE) {
-	ecb_data.config.control_state = STATE_SAFE_POWER_DOWN;
+	ecb_data.control_state = STATE_SAFE_POWER_DOWN;
       }
     }
     break;
@@ -652,7 +652,6 @@ void DoStateMachine(void) {
   case STATE_FAULT_HOLD:
     SendToEventLog(LOG_ID_ENTERED_STATE_FAULT_HOLD);
     ETMCanMasterSyncSet(SYNC_BIT_RESET_ENABLE, 0);
-    ETMCanMasterSyncSet(SYNC_BIT_CLEAR_DEBUG_DATA, 0);
     ETMCanMasterSyncSet(SYNC_BIT_HV_DISABLE, 1);
     FRONT_PANEL_AC_POWER       = OLL_FRONT_PANEL_LIGHT_ON;
     FRONT_PANEL_BEAM_ENABLE    = OLL_FRONT_PANEL_LIGHT_OFF;
@@ -668,10 +667,10 @@ void DoStateMachine(void) {
     SetGUNContactor(CONTACTOR_CLOSED);
     DisableTriggers();
     global_data_A37780.reset_requested = 0;
-    while (ecb_data.config.control_state == STATE_FAULT_HOLD) {
+    while (ecb_data.control_state == STATE_FAULT_HOLD) {
       DoA37780();
       if (global_data_A37780.reset_requested) {
-	ecb_data.config.control_state = STATE_FAULT_RESET;
+	ecb_data.control_state = STATE_FAULT_RESET;
       }
     }
     break;
@@ -680,7 +679,6 @@ void DoStateMachine(void) {
   case STATE_FAULT_RESET:
     SendToEventLog(LOG_ID_ENTERED_STATE_FAULT_RESET);
     ETMCanMasterSyncSet(SYNC_BIT_RESET_ENABLE, 0);
-    ETMCanMasterSyncSet(SYNC_BIT_CLEAR_DEBUG_DATA, 0);
     ETMCanMasterSyncSet(SYNC_BIT_HV_DISABLE, 1);
     FRONT_PANEL_AC_POWER       = OLL_FRONT_PANEL_LIGHT_ON;
     FRONT_PANEL_BEAM_ENABLE    = OLL_FRONT_PANEL_LIGHT_OFF;
@@ -696,20 +694,20 @@ void DoStateMachine(void) {
     SetGUNContactor(CONTACTOR_CLOSED);
     DisableTriggers();
     global_data_A37780.reset_hold_timer = 0;
-    while (ecb_data.config.control_state == STATE_FAULT_RESET) {
+    while (ecb_data.control_state == STATE_FAULT_RESET) {
       DoA37780();
       if (global_data_A37780.reset_hold_timer > FAULT_RESET_HOLD_TIME) { 
 	if (!CheckStandbyFault()) {
-	  ecb_data.config.control_state = STATE_STANDBY;
+	  ecb_data.control_state = STATE_STANDBY;
 	}
       }
       if (CheckWarmupFault()) {
-	ecb_data.config.control_state = STATE_FAULT_WARMUP;
+	ecb_data.control_state = STATE_FAULT_WARMUP;
       }
       if ((global_data_A37780.thyratron_warmup_remaining > 0) ||
 	  (global_data_A37780.magnetron_warmup_remaining > 0) ||
 	  (global_data_A37780.gun_warmup_remaining > 0)) {
-	ecb_data.config.control_state = STATE_FAULT_WARMUP;
+	ecb_data.control_state = STATE_FAULT_WARMUP;
       }
     }
     break;
@@ -718,7 +716,6 @@ void DoStateMachine(void) {
   case STATE_SAFE_POWER_DOWN:
     SendToEventLog(LOG_ID_ENTERED_STATE_SAFE_POWER_DOWN);
     ETMCanMasterSyncSet(SYNC_BIT_RESET_ENABLE, 0);
-    ETMCanMasterSyncSet(SYNC_BIT_CLEAR_DEBUG_DATA, 0);
     ETMCanMasterSyncSet(SYNC_BIT_HV_DISABLE, 1);
     FRONT_PANEL_AC_POWER       = OLL_FRONT_PANEL_LIGHT_ON;
     FRONT_PANEL_BEAM_ENABLE    = OLL_FRONT_PANEL_LIGHT_OFF;
@@ -733,7 +730,7 @@ void DoStateMachine(void) {
     // NO Change to the Contactors yet
     // DPARKER - SHUT DOWN TCP CONNECTION
     global_data_A37780.shutdown_counter = 0;
-    while (ecb_data.config.control_state == STATE_SAFE_POWER_DOWN) {
+    while (ecb_data.control_state == STATE_SAFE_POWER_DOWN) {
       DoA37780();
       
       if (global_data_A37780.shutdown_counter >= 100) {
@@ -743,6 +740,8 @@ void DoStateMachine(void) {
       
       if (global_data_A37780.shutdown_counter >= 200) {
 	SetACContactor(CONTACTOR_OPEN);
+	persistent_data_reset_check_a = PERSISTENT_RESET_CHECK_SYSTEM_RESART;
+	persistent_data_reset_check_b = PERSISTENT_RESET_CHECK_SYSTEM_RESART_XOR;
       }
 
       if (global_data_A37780.shutdown_counter >= 500) {
@@ -753,7 +752,7 @@ void DoStateMachine(void) {
 
 
   default:
-    ecb_data.config.control_state = STATE_FAULT_SYSTEM;
+    ecb_data.control_state = STATE_FAULT_SYSTEM;
     break;
 
   }
@@ -947,6 +946,16 @@ void UpdateDebugData(void) {
   debug_data_ecb.debug_reg[0xE] = 12;
   debug_data_ecb.debug_reg[0xF] = 12; 
   */
+
+  debug_data_ecb.debug_reg[0x0] = 0;
+  debug_data_ecb.debug_reg[0x1] = 1;
+  debug_data_ecb.debug_reg[0x2] = 2;
+  debug_data_ecb.debug_reg[0x3] = 3;
+  debug_data_ecb.debug_reg[0x4] = global_data_A37780.eeprom_write_status;
+
+  debug_data_ecb.debug_reg[0x5] = global_data_A37780.adc_reading_at_turn_on;
+  debug_data_ecb.debug_reg[0x6] = sync_time_10ms_units;
+  
   /*
   debug_data_ecb.debug_reg[0x0] = ecb_data.dose_level_0.hvps_set_point;
   debug_data_ecb.debug_reg[0x1] = local_hvps_set_point_dose_1;
@@ -966,6 +975,10 @@ void UpdateDebugData(void) {
   debug_data_ecb.debug_reg[0xF] = global_data_A37780.system_serial_number;
   */
 
+  debug_data_ecb.ram_monitor_c = *global_data_A37780.ram_ptr_c;
+  debug_data_ecb.ram_monitor_b = *global_data_A37780.ram_ptr_b;
+  debug_data_ecb.ram_monitor_a = *global_data_A37780.ram_ptr_a;
+  
   
 }
 
@@ -973,10 +986,14 @@ void UpdateDebugData(void) {
 void DoA37780(void) {
   static unsigned long ten_millisecond_holding_var;
   static unsigned long one_second_holding_var;
+  static unsigned char spi_device_alternate;
+
+
+  static unsigned int event_log_test_id;
   
   /* 
      DPARKER,do we need to set these???
-     etm_can_master_sync_message.sync_1_ecb_state_for_fault_logic = ecb_data.config.control_state;
+     etm_can_master_sync_message.sync_1_ecb_state_for_fault_logic = ecb_data.control_state;
      etm_can_master_sync_message.sync_2 = 0x0123;
      etm_can_master_sync_message.sync_3 = 0x4567;
   */
@@ -989,6 +1006,8 @@ void DoA37780(void) {
 
   if (ETMTickRunOnceEveryNMilliseconds(1000, &one_second_holding_var)) {
 
+    SendToEventLog(event_log_test_id++);
+    
     // DPARKER add code detect a PFN FAN FAULT
 
     if (PIN_OUT_LED_GRN_OPERATION) {
@@ -1035,7 +1054,8 @@ void DoA37780(void) {
     if (global_data_A37780.gun_warmup_remaining >= GUN_DRIVER_HEATER_WARM_UP_TIME) {
       global_data_A37780.gun_warmup_remaining = GUN_DRIVER_HEATER_WARM_UP_TIME;
     }
-    
+
+
     // Write System timers, Arc Counter, Pulse Counter, and warmup timers to EEPROM
     ecb_data.system_counters.last_warmup_seconds = global_data_A37780.time_seconds_now;
     if (global_data_A37780.gun_warmup_remaining >= 0x3FF) {
@@ -1047,14 +1067,24 @@ void DoA37780(void) {
     if (global_data_A37780.thyratron_warmup_remaining >= 0xFFF) {
       global_data_A37780.thyratron_warmup_remaining = 0xFFF;
     }
+
     ecb_data.system_counters.warmup_status = global_data_A37780.thyratron_warmup_remaining;
     ecb_data.system_counters.warmup_status <<= 10;
     ecb_data.system_counters.warmup_status += global_data_A37780.magnetron_warmup_remaining;
     ecb_data.system_counters.warmup_status <<= 10;
     ecb_data.system_counters.warmup_status += global_data_A37780.gun_warmup_remaining;
-    if (global_data_A37780.eeprom_failure == 0) {
-      // Do not overwrite the values if we were unable to read them properly at boot
-      ETMEEPromWritePageFast(EEPROM_PAGE_ECB_COUNTER_AND_TIMERS, (unsigned int*)&ecb_data.system_counters);
+
+
+
+    if (spi_device_alternate == 0) {
+      spi_device_alternate = 1;
+      if (global_data_A37780.eeprom_failure == 0) {
+	// Do not overwrite the values if we were unable to read them properly at boot
+	ETMEEPromWritePageFast(EEPROM_PAGE_ECB_COUNTER_AND_TIMERS, (unsigned int*)&ecb_data.system_counters);
+      }
+    } else {
+      spi_device_alternate = 0;
+      MCP23S18UpdateInputs();
     }
         
     // Update warmup done 
@@ -1067,26 +1097,28 @@ void DoA37780(void) {
     }
 
     // Update the system power counters
-    if (ecb_data.config.control_state >= STATE_WAITING_FOR_INITIALIZATION) { 
+    if (ecb_data.control_state >= STATE_WAITING_FOR_INITIALIZATION) { 
       ecb_data.system_counters.powered_seconds++;
     }
-    if (ecb_data.config.control_state == STATE_READY) {
+    if (ecb_data.control_state == STATE_READY) {
       ecb_data.system_counters.hv_on_seconds++;
     }
-    if (ecb_data.config.control_state == STATE_XRAY_ON) {
+    if (ecb_data.control_state == STATE_XRAY_ON) {
       ecb_data.system_counters.hv_on_seconds++;
       ecb_data.system_counters.xray_on_seconds++;
     }
   } // End of 1 Second Tasks
 
   if (ETMTickRunOnceEveryNMilliseconds(10, &ten_millisecond_holding_var)) {
+    sync_time_10ms_units += 1;
+
     // 10ms Timer has expired -- run periodic checks and updates
 
     // Load Local data into the registers for logging
 
     /*
     // Load log_data Memory for types that can not be mapped directly into memory
-    local_data_ecb.log_data[0] = ecb_data.config.control_state;
+    local_data_ecb.log_data[0] = ecb_data.control_state;
     local_data_ecb.log_data[3] = ETMCanMasterGetPulsePRF();
     local_data_ecb.log_data[4] = global_data_A37780.thyratron_warmup_remaining;
     local_data_ecb.log_data[5] = global_data_A37780.magnetron_warmup_remaining;
@@ -1124,10 +1156,69 @@ void DoA37780(void) {
     // If so set a fault that can only be cleared with a reset command
 
 
-#define X_RAY_ON_BEAM_DISABLED_MAX_TIME 10 // 100mS
-#define X_RAY_ON_OFF_MISMATCH_MAX_TIME  10 // 100mS
-#define X_RAY_ON_WRONG_STATE_MAX_TIME   10 // 100mS
-  
+
+    if (DISCRETE_INPUT_X_RAY_ON == DISCRETE_INPUT_X_RAY_OFF) {
+      ETMDigitalUpdateInput(&global_data_A37780.x_ray_on_mismatch_input, 1);
+    } else {
+      ETMDigitalUpdateInput(&global_data_A37780.x_ray_on_mismatch_input, 0);
+    }
+
+    if (ETMDigitalFilteredOutput(&global_data_A37780.x_ray_on_mismatch_input)) {
+      _FAULT_X_RAY_MISMATCH = 1;
+    } else if (ETMCanMasterCheckResetActive()) {
+      _FAULT_X_RAY_MISMATCH = 0;
+    }
+
+
+    if ((DISCRETE_INPUT_X_RAY_ON == ILL_X_RAY_ON_XRAY_ENABLED) && (BEAM_ENABLE_INPUT == ILL_BEAM_DISABLED)) {
+      ETMDigitalUpdateInput(&global_data_A37780.x_ray_on_without_beam_enable_input, 1);
+    } else {
+      ETMDigitalUpdateInput(&global_data_A37780.x_ray_on_without_beam_enable_input, 0);
+    }
+
+    if (ETMDigitalFilteredOutput(&global_data_A37780.x_ray_on_without_beam_enable_input)) {
+      _FAULT_X_RAY_ON_BEAM_DISABLED = 1;
+    } else if (ETMCanMasterCheckResetActive()) {
+      _FAULT_X_RAY_ON_BEAM_DISABLED = 0;
+    }
+    
+    
+    if (DISCRETE_INPUT_X_RAY_ON != ILL_X_RAY_ON_XRAY_ENABLED) {
+      ETMDigitalUpdateInput(&global_data_A37780.x_ray_on_wrong_state_input, 0);
+    } else if ((ecb_data.control_state == STATE_DRIVE_UP) ||
+	       (ecb_data.control_state == STATE_READY) ||
+	       (ecb_data.control_state == STATE_XRAY_ON) ||
+	       (ecb_data.control_state == STATE_FAULT_HOLD)) {
+      // We are in a valid state for x ray on
+      ETMDigitalUpdateInput(&global_data_A37780.x_ray_on_wrong_state_input, 0);
+    } else {
+      ETMDigitalUpdateInput(&global_data_A37780.x_ray_on_wrong_state_input, 1);
+    }
+
+    if (ETMDigitalFilteredOutput(&global_data_A37780.x_ray_on_wrong_state_input)) {
+      _FAULT_X_RAY_ON_WRONG_STATE = 1;
+    } else if (ETMCanMasterCheckResetActive()) {
+      _FAULT_X_RAY_ON_WRONG_STATE = 0;
+    }
+
+    
+    if (PIN_IN_SPARE_READY_1) {
+      ETMDigitalUpdateInput(&global_data_A37780.pfn_fan_fault_input, 1);
+    } else {
+      ETMDigitalUpdateInput(&global_data_A37780.pfn_fan_fault_input, 0);
+    }
+
+    if (ETMDigitalFilteredOutput(&global_data_A37780.pfn_fan_fault_input)) {
+      _FAULT_PFN_FAN_FAULT = 1;
+    } else if (ETMCanMasterCheckResetActive()) {
+      _FAULT_PFN_FAN_FAULT = 0;
+    }
+
+
+    
+    
+    /*
+    
     // Check the X_RAY mismatch fault counter
     if (DISCRETE_INPUT_X_RAY_ON != DISCRETE_INPUT_X_RAY_OFF) {
       if (global_data_A37780.x_ray_on_off_mismatch_counter <= (X_RAY_ON_OFF_MISMATCH_MAX_TIME << 1)) {
@@ -1147,6 +1238,8 @@ void DoA37780(void) {
       }
     }
   
+
+
     // Check X-Ray ON vs Beam Enable
     if ((DISCRETE_INPUT_X_RAY_ON == ILL_X_RAY_ON_XRAY_ENABLED) && (BEAM_ENABLE_INPUT == ILL_BEAM_DISABLED)) {
       if (global_data_A37780.x_ray_on_while_beam_disabled_counter <= (X_RAY_ON_BEAM_DISABLED_MAX_TIME << 1)) {
@@ -1166,12 +1259,15 @@ void DoA37780(void) {
       }
     }
 
+    
+
+
     // Check X-Ray ON States
     if (DISCRETE_INPUT_X_RAY_ON == ILL_X_RAY_ON_XRAY_ENABLED) {
-      if ((ecb_data.config.control_state == STATE_DRIVE_UP) ||
-	  (ecb_data.config.control_state == STATE_READY) ||
-	  (ecb_data.config.control_state == STATE_XRAY_ON) ||
-	  (ecb_data.config.control_state == STATE_FAULT_HOLD)) {
+      if ((ecb_data.control_state == STATE_DRIVE_UP) ||
+	  (ecb_data.control_state == STATE_READY) ||
+	  (ecb_data.control_state == STATE_XRAY_ON) ||
+	  (ecb_data.control_state == STATE_FAULT_HOLD)) {
 	// We are in a valid state for x ray on
 	if (global_data_A37780.x_ray_on_wrong_state_counter) {
 	  global_data_A37780.x_ray_on_wrong_state_counter--;
@@ -1192,6 +1288,8 @@ void DoA37780(void) {
       }
     }
   
+    */
+
     
     if (global_data_A37780.drive_up_fault_counter > MAX_DRIVE_UP_FAULTS) {
       _FAULT_REPEATED_DRIVE_UP_FAULT = 1;
@@ -1223,7 +1321,7 @@ void DoA37780(void) {
 
     UpdateDebugData();  // Load the customized debugging data into the debugging registers
     
-    if (ecb_data.config.control_state == STATE_DRIVE_UP) {
+    if (ecb_data.control_state == STATE_DRIVE_UP) {
       global_data_A37780.drive_up_timer++;
     } else {
       global_data_A37780.drive_up_timer = 0;
@@ -1324,7 +1422,7 @@ void UpdateHeaterScale() {
   
   // Multiply the Energy per Pulse times the PRF (in deci-Hz)
   power_calc *= ETMCanMasterGetPulsePRF();
-  if (ecb_data.config.control_state != STATE_XRAY_ON) {
+  if (ecb_data.control_state != STATE_XRAY_ON) {
     // Set the power to zero if we are not in the X-RAY ON state
     power_calc = 0;  // DPARKER - TESTING ONLY - CALCULATE POWER WITHOUR FIRING THE SYSTEM
   }
@@ -1352,13 +1450,34 @@ void UpdateHeaterScale() {
 
 
 void InitializeA37780(void) {
-  unsigned int eeprom_read[16];
+  /*
+    Initialization order
+    * Pins
+    * ADC
+    * ADC Sample Off Time
+    * ETM Tick
+    * I/O Expader (includes SPI)
+    * EEProm (SPI)
+    * System Configuration (from EEProm)
+    * Warmup timers (require EEProm)
+    * Can Master - Reuquires the power cycle info from Warmup timers and EEProm
+    * T2 - Trigger timing
+    * Digital Input Objects
+    * TCP Modubus
 
+  */
+  
   _FAULT_REGISTER      = 0;
   _CONTROL_REGISTER    = 0;
   _WARNING_REGISTER    = 0;
   _NOT_LOGGED_REGISTER = 0;
 
+
+  global_data_A37780.ram_ptr_a = 0;
+  global_data_A37780.ram_ptr_b = 0;
+  global_data_A37780.ram_ptr_c = 0;
+  
+   
   global_data_A37780.access_mode = ACCESS_MODE_DEFAULT;
   // DPARKER CHange acces mode back to default
   global_data_A37780.access_mode = ACCESS_MODE_ETM;
@@ -1375,51 +1494,30 @@ void InitializeA37780(void) {
   TRISF = A37780_TRISF_VALUE;
   TRISG = A37780_TRISG_VALUE;
 
-
-  // Check it reset was a result of full power cycle
-  /*
-//Initialize the internal ADC for Startup Power Checks
-  // ---- Configure the dsPIC ADC Module ------------ //
+  // DPARKER Turn on UART1 TX fiber as a test light source
+  _LATF3 = 1;
+  _TRISF3 = 0;
+  
+  
+  // ---- Check the ADC to figure out how long the power was off for ------------ //
   ADCON1 = ADCON1_SETTING;             // Configure the high speed ADC module based on H file parameters
   ADCON2 = ADCON2_SETTING;             // Configure the high speed ADC module based on H file parameters
   ADPCFG = ADPCFG_SETTING;             // Set which pins are analog and which are digital I/O
   ADCHS  = ADCHS_SETTING;              // Configure the high speed ADC module based on H file parameters
-
+  
   ADCON3 = ADCON3_SETTING;             // Configure the high speed ADC module based on H file parameters
   ADCSSL = ADCSSL_SETTING;
-
+  
   _ADIF = 0;
   _ADON = 1;
+
+  while (!_ADIF) {
+  }
+
+  global_data_A37780.adc_reading_at_turn_on = ADCBUF0 + ADCBUF1 + ADCBUF2 + ADCBUF3 + ADCBUF4 + ADCBUF5 + ADCBUF6 + ADCBUF7 +
+    ADCBUF8 + ADCBUF9 + ADCBUFA + ADCBUFB + ADCBUFC + ADCBUFD + ADCBUFE + ADCBUFF;
   
-
-
-ETMAnalogInputInitialize(&analog_5V_vmon, 
-			   MACRO_DEC_TO_SCALE_FACTOR_16(2.440215),
-			   ETM_ANALOG_OFFSET_ZERO,
-			   ETM_ANALOG_AVERAGE_8_SAMPLES);
-
-
-
-  // Wait for data to be read
-  while (_ADIF == 0);
-  
-  
-  ETMAnalogInputUpdate(&analog_5V_vmon, ADCBUF0);
-  ETMAnalogInputUpdate(&analog_5V_vmon, ADCBUF2);
-  ETMAnalogInputUpdate(&analog_5V_vmon, ADCBUF4);
-  ETMAnalogInputUpdate(&analog_5V_vmon, ADCBUF6);
-  ETMAnalogInputUpdate(&analog_5V_vmon, ADCBUF8);
-  ETMAnalogInputUpdate(&analog_5V_vmon, ADCBUFA);
-  ETMAnalogInputUpdate(&analog_5V_vmon, ADCBUFC);
-  ETMAnalogInputUpdate(&analog_5V_vmon, ADCBUFE);
-  ETMAnalogInputUpdate(&analog_5V_vmon, ADCBUFE);
-  */
-
-  _ADON = 0;
-  
-  // DPARKER - MONITOR THE LENGTH OF TIME PROCESSOR WAS OFF FOR
-  _STATUS_LAST_RESET_WAS_POWER_CYCLE = 0;
-  // DPARKER Figure out how to set this status correctly
+  _ADON = 0;    
 
 
   
@@ -1431,14 +1529,6 @@ ETMAnalogInputInitialize(&analog_5V_vmon,
 		FCY_CLK,
 		SPI_CLK_1_MBIT);
 
-  unsigned long expander_data;
-  expander_data = MCP23S18ReadInputs();
-
-  Nop();
-  Nop();
-  Nop();
-  
-  
   ETMEEPromUseSPI();
   ETMEEPromConfigureSPIDevice(EEPROM_SIZE_8K_BYTES,
 			      FCY_CLK,
@@ -1475,22 +1565,36 @@ ETMAnalogInputInitialize(&analog_5V_vmon,
   ReadSystemConfigurationFromEEProm();
 
   
-  // Read the current time
-  // DPARKER - Figure out how to set the time based on the off time and information from the GUI
   global_data_A37780.time_seconds_now = 0;
   
-  CalculateHeaterWarmupTimers();     // Calculate all of the warmup counters based on previous warmup counters
+  _STATUS_LAST_RESET_WAS_POWER_CYCLE = 1;
   
-  
-  // Initialize the Can module
-  // DPARKER WTF IS THIS????
-  if (ETMEEPromReadPage(EEPROM_PAGE_ECB_BOARD_CONFIGURATION, &eeprom_read[0]) == 0) {
-    eeprom_read[0] = 0x2121; // !!
-    eeprom_read[1] = 0xFFFF;
-    eeprom_read[2] = 0xFFFF;
+  if ((persistent_data_reset_check_a == PERSISTENT_RESET_CHECK_SYSTEM_RESART) &
+      (persistent_data_reset_check_b == PERSISTENT_RESET_CHECK_SYSTEM_RESART_XOR)) {
+    _STATUS_LAST_RESET_WAS_POWER_CYCLE = 0;
   }
+  
+  if ((persistent_data_reset_check_a == PERSISTENT_RESET_CHECK_OTHER_RESET) &
+      (persistent_data_reset_check_b == PERSISTENT_RESET_CHECK_OTHER_RESET_XOR)) {
+    _STATUS_LAST_RESET_WAS_POWER_CYCLE = 0;
+  }
+    
+  CalculateHeaterWarmupTimers();     // Calculate all of the warmup counters based on previous warmup counters
 
-  ETMCanMasterInitialize(CAN_PORT_1, FCY_CLK, _PIN_RC15, 4, 0);
+
+  persistent_data_reset_check_a = 0;
+  persistent_data_reset_check_b = 0;
+  
+  if (global_data_A37780.eeprom_failure == 0) {
+    // Do not overwrite the values if we were unable to read them properly at boot
+    if (ETMEEPromWritePageFast(EEPROM_PAGE_ECB_COUNTER_AND_TIMERS, (unsigned int*)&ecb_data.system_counters)) {
+      persistent_data_reset_check_a = PERSISTENT_RESET_CHECK_OTHER_RESET;
+      persistent_data_reset_check_b = PERSISTENT_RESET_CHECK_OTHER_RESET_XOR;
+    }
+  }
+#define BOARDS_TO_IGNORE 0b1111111111111110
+  
+  ETMCanMasterInitialize(CAN_PORT_1, FCY_CLK, _PIN_RC15, 4, BOARDS_TO_IGNORE);
 
   // DPARKER - FIGURE OUT THE CONFIGURATION
   //ETMCanMasterLoadConfiguration(37780, SOFTWARE_DASH_NUMBER, eeprom_read[0], FIRMWARE_AGILE_REV, FIRMWARE_BRANCH, FIRMWARE_BRANCH_REV, eeprom_read[1]);
@@ -1526,16 +1630,24 @@ ETMAnalogInputInitialize(&analog_5V_vmon,
 #endif
 
 
-  // Initialize all of the output compare modules.
-#define OCxCON_VALUE   0b0000000000000100 // TMR2, Single Output Pulse
-
-
   T2CON = T2CON_VALUE;
   PR2   = 0xFFFF;
   TMR2  = 0;
+
+
+#define X_RAY_ON_BEAM_DISABLED_MAX_TIME 10 // 100mS
+#define X_RAY_ON_OFF_MISMATCH_MAX_TIME  10 // 100mS
+#define X_RAY_ON_WRONG_STATE_MAX_TIME   10 // 100mS
+#define PFN_FAN_FAULT_MAX_TIME          50 // 500mS 
+
+
+  ETMDigitalInitializeInput(&global_data_A37780.x_ray_on_mismatch_input, 0, X_RAY_ON_OFF_MISMATCH_MAX_TIME);
+  ETMDigitalInitializeInput(&global_data_A37780.x_ray_on_without_beam_enable_input, 0, X_RAY_ON_BEAM_DISABLED_MAX_TIME); 
+  ETMDigitalInitializeInput(&global_data_A37780.x_ray_on_wrong_state_input, 0, X_RAY_ON_WRONG_STATE_MAX_TIME);
+  ETMDigitalInitializeInput(&global_data_A37780.pfn_fan_fault_input, 0, PFN_FAN_FAULT_MAX_TIME);
+
   
   ETMLinacModbusInitialize();
-  
 }
  
  
@@ -1543,12 +1655,17 @@ void CalculateHeaterWarmupTimers(void) {
   unsigned long difference;
   
   // Calculate new warm up time remaining
-  difference = global_data_A37780.time_seconds_now - ecb_data.system_counters.last_warmup_seconds;
-  if (difference >= 0x0E00) {
-    difference = 0x0E00;
+  if (_STATUS_LAST_RESET_WAS_POWER_CYCLE) {
+    difference = 60; // DPARKER calculate the off time from the analog reading
+  } else {
+    difference = 5; // assume 5 seconds at every reset
   }
+  
   difference *= 2;
-
+  if (difference >= 0x3FFF) {
+    difference = 0x3FFF; 
+  }
+    
   global_data_A37780.thyratron_warmup_remaining += difference;
   global_data_A37780.magnetron_warmup_remaining += difference;
   global_data_A37780.gun_warmup_remaining += difference;
@@ -1557,7 +1674,8 @@ void CalculateHeaterWarmupTimers(void) {
 
 
 void ReadSystemConfigurationFromEEProm(void) {
-
+  unsigned int data_restore;
+  
   // Read DOSE settings Zero, this is "HIGH DOSE" for MagneTX
   if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_SETTING_0, (unsigned int*)&ecb_data.dose_level_0) == 0) {
     if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_SETTING_0, (unsigned int*)&ecb_data.dose_level_0) == 0) {
@@ -1627,7 +1745,24 @@ void ReadSystemConfigurationFromEEProm(void) {
       }
     }
   }
+
+  data_restore = ecb_data.control_state;
   
+  // Read the Config data 
+  if (ETMEEPromReadPage(EEPROM_PAGE_ECB_BOARD_CONFIGURATION, (unsigned int*)&ecb_data.config) == 0) {
+    if (ETMEEPromReadPage(EEPROM_PAGE_ECB_BOARD_CONFIGURATION, (unsigned int*)&ecb_data.config) == 0) {
+      if (ETMEEPromReadPage(EEPROM_PAGE_ECB_BOARD_CONFIGURATION, (unsigned int*)&ecb_data.config) == 0) {
+	_FAULT_EEPROM_FAILURE = 1;
+	global_data_A37780.eeprom_failure |= 0b0000000010000000;
+      }
+    }
+  }
+
+  // DPARKER fix this
+  ecb_data.config.firmware_agile_rev = 1;
+  ecb_data.config.firmware_branch = 2;
+  ecb_data.config.firmware_branch_rev = 3;
+  ecb_data.control_state = data_restore;
 }
 
 
@@ -1776,21 +1911,22 @@ void LoadDefaultSystemCalibrationToEEProm(void) {
     }
   }
 
-  eeprom_data[0]  = 0x21;
-  eeprom_data[1]  = 0xFFFF;
-  eeprom_data[2]  = 0xFFFF;
-  eeprom_data[3]  = 0;
+  eeprom_data[0]  = 0x0;
+  eeprom_data[1]  = 37780;
+  eeprom_data[2]  = 0;
+  eeprom_data[3]  = 0x2041;
   eeprom_data[4]  = 0;
-  eeprom_data[5]  = 0;
+  eeprom_data[5]  = 100;
   eeprom_data[6]  = 0;
   eeprom_data[7]  = 0;
   eeprom_data[8]  = 0;
-  eeprom_data[9]  = 0;
-  eeprom_data[10] = 0;
-  eeprom_data[11] = 0;
+  eeprom_data[9]  = 0x2048;
+  eeprom_data[10]  = 0;
+  eeprom_data[11] = 7000;
   eeprom_data[12] = 0;
-  eeprom_data[13] = 0;
+  eeprom_data[13] = 0x4450;
   eeprom_data[14] = 0;
+  eeprom_data[15] = 0;
   
 
   if (ETMEEPromWritePageWithConfirmation(EEPROM_PAGE_ECB_BOARD_CONFIGURATION, &eeprom_data[0]) == 0) {
@@ -1837,107 +1973,6 @@ void LoadDefaultSystemCalibrationToEEProm(void) {
   }
 
 }
-
-
-
-/*
-
-#define REGISTER_HVPS_SET_POINT_DOSE_0 0x0400
-#define REGISTER_ELECTROMAGNET_CURRENT_DOSE_0 0x0401
-#define REGISTER_GUN_DRIVER_PULSE_TOP_VOLTAGE_DOSE_0 0x0402
-#define REGISTER_GUN_DRIVER_CATHODE_VOLTAGE_DOSE_0 0x0403
-#define REGISTER_TRIGGER_SPARE_DOSE_0 0x0404
-#define REGISTER_TRIGGER_AFC_DOSE_0 0x0405
-#define REGISTER_TRIGGER_GRID_START_MIN_DOSE_0 0x0406
-#define REGISTER_TRIGGER_GRID_START_MAX_DOSE_0 0x0407
-#define REGISTER_TRIGGER_GRID_STOP_MIN_DOSE_0 0x0408
-#define REGISTER_TRIGGER_GRID_STOP_MAX_DOSE_0 0x0409
-#define REGISTER_AFC_HOME_POSITION_DOSE_0 0x040A
-#define REGISTER_SELF_TRIGGER_PRF_DOSE_0 0x040B
-
-#define REGISTER_HVPS_SET_POINT_DOSE_1 0x0410
-#define REGISTER_ELECTROMAGNET_CURRENT_DOSE_1 0x0411
-#define REGISTER_GUN_DRIVER_PULSE_TOP_VOLTAGE_DOSE_1 0x0412
-#define REGISTER_GUN_DRIVER_CATHODE_VOLTAGE_DOSE_1 0x0413
-#define REGISTER_TRIGGER_SPARE_DOSE_1 0x0414
-#define REGISTER_TRIGGER_AFC_DOSE_1 0x0415
-#define REGISTER_TRIGGER_GRID_START_MIN_DOSE_1 0x0416
-#define REGISTER_TRIGGER_GRID_START_MAX_DOSE_1 0x0417
-#define REGISTER_TRIGGER_GRID_STOP_MIN_DOSE_1 0x0418
-#define REGISTER_TRIGGER_GRID_STOP_MAX_DOSE_1 0x0419
-#define REGISTER_AFC_HOME_POSITION_DOSE_1 0x41A
-#define REGISTER_SELF_TRIGGER_PRF_DOSE_1 0x41B
-
-#define REGISTER_HVPS_SET_POINT_DOSE_2 0x0420
-#define REGISTER_ELECTROMAGNET_CURRENT_DOSE_2 0x0421
-#define REGISTER_GUN_DRIVER_PULSE_TOP_VOLTAGE_DOSE_2 0x0422
-#define REGISTER_GUN_DRIVER_CATHODE_VOLTAGE_DOSE_2 0x0423
-#define REGISTER_TRIGGER_SPARE_DOSE_2 0x0424
-#define REGISTER_TRIGGER_AFC_DOSE_2 0x0425
-#define REGISTER_TRIGGER_GRID_START_MIN_DOSE_2 0x0426
-#define REGISTER_TRIGGER_GRID_START_MAX_DOSE_2 0x0427
-#define REGISTER_TRIGGER_GRID_STOP_MIN_DOSE_2 0x0428
-#define REGISTER_TRIGGER_GRID_STOP_MAX_DOSE_2 0x0429
-#define REGISTER_AFC_HOME_POSITION_DOSE_2 0x042A
-#define REGISTER_SELF_TRIGGER_PRF_DOSE_2 0x042B
-
-#define REGISTER_HVPS_SET_POINT_DOSE_3 0x0430
-#define REGISTER_ELECTROMAGNET_CURRENT_DOSE_3 0x0431
-#define REGISTER_GUN_DRIVER_PULSE_TOP_VOLTAGE_DOSE_3 0x0432
-#define REGISTER_GUN_DRIVER_CATHODE_VOLTAGE_DOSE_3 0x0433
-#define REGISTER_TRIGGER_SPARE_DOSE_3 0x0434
-#define REGISTER_TRIGGER_AFC_DOSE_3 0x0435
-#define REGISTER_TRIGGER_GRID_START_MIN_DOSE_3 0x0436
-#define REGISTER_TRIGGER_GRID_START_MAX_DOSE_3 0x0437
-#define REGISTER_TRIGGER_GRID_STOP_MIN_DOSE_3 0x0438
-#define REGISTER_TRIGGER_GRID_STOP_MAX_DOSE_3 0x0439
-#define REGISTER_AFC_HOME_POSITION_DOSE_3 0x043A
-#define REGISTER_SELF_TRIGGER_PRF_DOSE_3 0x043B
-
-#define REGISTER_MAGNETRON_HEATER_CURRENT_DOSE_ALL 0x0500
-#define REGISTER_GUN_DRIVER_HEATER_VOLTAGE_DOSE_ALL 0x0501
-#define REGISTER_TRIGGER_HVPS_START_DOSE_ALL 0x0502
-#define REGISTER_TRIGGER_HVPS_STOP_DOSE_ALL 0x0503
-#define REGISTER_TRIGGER_PFN_DOSE_ALL 0x0504
-#define REGISTER_TRIGGER_MAGNETRON_AND_TARGET_CURRENT_START_DOSE_ALL 0x0505
-#define REGISTER_TRIGGER_MAGNETRON_AND_TARGET_CURRENT_STOP_DOSE_ALL 0x0506
-#define REGISTER_X_RAY_ON_TIME_DOSE_ALL 0x0507
-#define REGISTER_GUN_BIAS_VOLTAGE_DOSE_ALL 0x0508
-#define REGISTER_AFC_AFT_CONTROL_VOLTAGE_DOSE_ALL 0x0509
-
-#define REGISTER_CMD_ECB_RESET_FAULTS 0x1000
-#define REGISTER_CMD_COOLANT_INTERFACE_ALLOW_25_MORE_SF6_PULSES 0x1001
-#define REGISTER_SET_ACCESS_MODE_DEFAULT 0x1002
-#define REGISTER_SET_ACCESS_MODE_SERVICE 0x1003
-#define REGISTER_SET_ACCESS_MODE_ETM 0x1004
-#define REGISTER_CLEAR_EEPROM_WRITE_STATUS 0x1005
-
-#define REGISTER_CMD_AFC_SELECT_AFC_MODE 0x1100
-#define REGISTER_CMD_AFC_SELECT_MANUAL_MODE 0x1101
-#define REGISTER_CMD_AFC_MANUAL_TARGET_POSITION 0x1102
-#define REGISTER_CMD_COOLANT_INTERFACE_ALLOW_SF6_PULSES_WHEN_PRESSURE_BELOW_LIMIT 0x1103
-#define REGISTER_CMD_COOLANT_INTERFACE_SET_SF6_PULSES_IN_BOTTLE 0x1104
-#define REGISTER_SYSTEM_SET_TIME 0x1105
-#define REGISTER_SYSTEM_ENABLE_HIGH_SPEED_LOGGING 0x1106
-#define REGISTER_SYSTEM_DISABLE_HIGH_SPEED_LOGGING 0x1107
-#define REGISTER_SYSTEM_LOAD_FACTORY_DEFAULTS_AND_REBOOT 0x1108
-#define REGISTER_SYSTEM_SAVE_CURRENT_SETTINGS_TO_CUSTOMER_SAVE 0x1109
-#define REGISTER_SYSTEM_LOAD_CUSTOMER_SETTINGS_SAVE_AND_REBOOT 0x110A
-#define REGISTER_REMOTE_IP_ADDRESS 0x110B
-#define REGISTER_IP_ADDRESS 0x110C
-
-#define REGISTER_DEBUG_TOGGLE_RESET_DEBUG 0x1200
-#define REGISTER_DEBUG_RESET_MCU 0x1201
-#define REGISTER_ETM_SYSTEM_SERIAL_NUMBER 0x1202
-#define REGISTER_DEBUG_GUN_DRIVER_RESET_FPGA 0x1203
-#define REGISTER_ETM_ECB_RESET_ARC_AND_PULSE_COUNT 0x1204
-#define REGISTER_ETM_ECB_RESET_SECONDS_POWERED_HV_ON_XRAY_ON 0x1205
-#define REGISTER_ETM_ECB_LOAD_DEFAULT_SYSTEM_SETTINGS_AND_REBOOT 0x1206
-#define REGISTER_ETM_SET_REVISION_AND_SERIAL_NUMBER 0x1207
-#define REGISTER_ETM_SAVE_CURRENT_SETTINGS_TO_FACTORY_DEFAULT 0x1208
-
-
-*/
 
 
 
@@ -2022,10 +2057,10 @@ void LoadDefaultSystemCalibrationToEEProm(void) {
 #define REGISTER_REMOTE_IP_ADDRESS 0x110B
 #define REGISTER_IP_ADDRESS 0x110C
 
-#define REGISTER_DEBUG_TOGGLE_RESET_DEBUG 0x1200
+//#define REGISTER_DEBUG_TOGGLE_RESET_DEBUG 0x1200
 #define REGISTER_DEBUG_RESET_MCU 0x1201
 #define REGISTER_ETM_SYSTEM_SERIAL_NUMBER 0x1202
-#define REGISTER_DEBUG_GUN_DRIVER_RESET_FPGA 0x1203
+//#define REGISTER_DEBUG_GUN_DRIVER_RESET_FPGA 0x1203
 #define REGISTER_ETM_ECB_RESET_ARC_AND_PULSE_COUNT 0x1204
 #define REGISTER_ETM_ECB_RESET_SECONDS_POWERED_HV_ON_XRAY_ON 0x1205
 #define REGISTER_ETM_ECB_LOAD_DEFAULT_SYSTEM_SETTINGS_AND_REBOOT 0x1206
@@ -2039,6 +2074,8 @@ void LoadDefaultSystemCalibrationToEEProm(void) {
 
 void ExecuteEthernetCommand(void) {
   ETMEthernetMessageFromGUI next_message;
+  unsigned int eeprom_page_data[16];
+  unsigned int page_to_read;
 
   // DPARKER PUT NEXT_MESSAGE BACK IN
   next_message = GetNextMessageFromGUI();
@@ -2104,16 +2141,6 @@ void ExecuteEthernetCommand(void) {
       }
       break;
 
-      /*
-    case REGISTER_DEBUG_GUN_DRIVER_RESET_FPGA:
-      ETMCanMasterSendMsg((ETM_CAN_MSG_CMD_TX | (ETM_CAN_ADDR_GUN_DRIVER_BOARD << 2)),
-			  0x8202,
-			  0,
-			  0,
-			  0);
-      break;
-      */
-      
     case REGISTER_ETM_ECB_RESET_ARC_AND_PULSE_COUNT:
       ecb_data.system_counters.arc_counter = 0;
       ecb_data.system_counters.pulse_counter = 0;
@@ -2132,7 +2159,7 @@ void ExecuteEthernetCommand(void) {
       break;
 
     case REGISTER_DEBUG_RESET_MCU:
-      if ((ecb_data.config.control_state < STATE_DRIVE_UP) || (ecb_data.config.control_state > STATE_XRAY_ON)) {
+      if ((ecb_data.control_state < STATE_DRIVE_UP) || (ecb_data.control_state > STATE_XRAY_ON)) {
 	if (next_message.data_3 == ETM_CAN_ADDR_ETHERNET_BOARD) {
 	  __asm__ ("Reset");
 	} else {
@@ -2140,16 +2167,6 @@ void ExecuteEthernetCommand(void) {
 	}
       }
       break;
-
-      /*
-    case REGISTER_DEBUG_TOGGLE_RESET_DEBUG:
-      if (_SYNC_CONTROL_CLEAR_DEBUG_DATA) {
-	_SYNC_CONTROL_CLEAR_DEBUG_DATA = 0;
-      } else {
-	_SYNC_CONTROL_CLEAR_DEBUG_DATA = 1;
-      }
-      break;
-      */
 
     case REGISTER_ETM_SET_REVISION_AND_SERIAL_NUMBER:
       if (next_message.data_3 == ETM_CAN_ADDR_ETHERNET_BOARD) {
@@ -2184,12 +2201,8 @@ void ExecuteEthernetCommand(void) {
       break;
 
     case REGISTER_ETM_CLEAR_DEBUG:
-      if (next_message.data_3 == ETM_CAN_ADDR_ETHERNET_BOARD) {
-	ETMCanMasterClearECBDebug();
-	// DO NOTHING
-      } else {
-	ETMCanMasterSendSlaveClearDebug();
-      }
+      ETMCanMasterClearECBDebug();
+      ETMCanMasterSendSlaveClearDebug();
       break;
       
 
@@ -2735,7 +2748,7 @@ void ExecuteEthernetCommand(void) {
       break;
       
     case REGISTER_SYSTEM_LOAD_FACTORY_DEFAULTS_AND_REBOOT:
-      if ((ecb_data.config.control_state < STATE_DRIVE_UP) || (ecb_data.config.control_state > STATE_XRAY_ON)) {
+      if ((ecb_data.control_state < STATE_DRIVE_UP) || (ecb_data.control_state > STATE_XRAY_ON)) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;
 	LoadConfig(USE_FACTORY_DEFAULTS);
 	if (global_data_A37780.eeprom_write_status == EEPROM_WRITE_SUCCESSFUL) {
@@ -2746,7 +2759,7 @@ void ExecuteEthernetCommand(void) {
       break;
 
     case REGISTER_SYSTEM_LOAD_CUSTOMER_SETTINGS_SAVE_AND_REBOOT:
-      if ((ecb_data.config.control_state < STATE_DRIVE_UP) || (ecb_data.config.control_state > STATE_XRAY_ON)) {
+      if ((ecb_data.control_state < STATE_DRIVE_UP) || (ecb_data.control_state > STATE_XRAY_ON)) {
 	global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;
 	LoadConfig(USE_CUSTOMER_BACKUP);
 	if (global_data_A37780.eeprom_write_status == EEPROM_WRITE_SUCCESSFUL) {
@@ -2756,15 +2769,9 @@ void ExecuteEthernetCommand(void) {
       }
       break;
 
-      /*
-	case REGISTER_ETM_ECB_SEND_SLAVE_RELOAD_EEPROM_WITH_DEFAULTS:
-	break;
-      */
-      
     case REGISTER_SYSTEM_ENABLE_HIGH_SPEED_LOGGING:
-      // Clear the Logging registers
-      // DPARKER deal with ETMCanMasterClearHighSpeedLogging
-      //ETMCanMasterClearHighSpeedLogging();
+      // DPARKER - Clear the data in the pulse log so that we don't get old data in the log
+      ETMCanMasterClearHighSpeedLogging();
       ETMCanMasterSyncSet(SYNC_BIT_ENABLE_PULSE_LOG, 1);
       break;
       
@@ -2775,6 +2782,18 @@ void ExecuteEthernetCommand(void) {
     case REGISTER_DEBUG_SET_RAM_DEBUG:
       if (next_message.data_3 == ETM_CAN_ADDR_ETHERNET_BOARD) {
 	// Debug Ram Loactions on the ECB
+	next_message.data_2 <<= 1;
+	next_message.data_1 <<= 1;
+	next_message.data_0 <<= 1;
+	if (next_message.data_2 < RAM_SIZE_WORDS) {
+	  global_data_A37780.ram_ptr_a = (unsigned int*)next_message.data_2;
+	}
+	if (next_message.data_1 < RAM_SIZE_WORDS) {
+	  global_data_A37780.ram_ptr_b = (unsigned int*)next_message.data_1;
+	}
+	if (next_message.data_0 < RAM_SIZE_WORDS) {
+	  global_data_A37780.ram_ptr_c = (unsigned int*)next_message.data_0;
+	}
       } else {
 	// DEbug Ram Loactions on a slave
 	ETMCanMasterSendSlaveRAMDebugLocations(next_message.data_3, next_message.data_2, next_message.data_1, next_message.data_0);}
@@ -2783,12 +2802,17 @@ void ExecuteEthernetCommand(void) {
     case REGISTER_DEBUG_SET_EEPROM_DEBUG:
       if (next_message.data_3 == ETM_CAN_ADDR_ETHERNET_BOARD) {
 	// Debug Ram Loactions on the ECB
+	page_to_read = next_message.data_2>>4;
+	if (ETMEEPromPrivateReadSinglePage(page_to_read, eeprom_page_data) == 0xFFFF) {
+	  debug_data_ecb.eeprom_read_result = eeprom_page_data[(next_message.data_2 & 0x000F)];
+	} else {
+	  debug_data_ecb.eeprom_read_result = 0xFFEF;
+	}
       } else {
 	ETMCanMasterSendSlaveEEPROMDebug(next_message.data_3, next_message.data_2);
       }
-	break;
-      
-      
+      break;
+           
     }
   }
 }
@@ -2990,6 +3014,9 @@ void LoadConfig(unsigned int source) {
 #define T2_HOLDOFF_100US  2000
 
 
+#define OCxCON_VALUE   0b0000000000000100 // TMR2, Single Output Pulse
+
+
 // External Trigger
 void __attribute__((interrupt, shadow, no_auto_psv)) _INT1Interrupt(void) {
   unsigned int next_dose_level;
@@ -3016,7 +3043,7 @@ void __attribute__((interrupt, shadow, no_auto_psv)) _INT1Interrupt(void) {
       if (PIN_TRIGGER_IN == ILL_TRIGGER_ACTIVE) {
 	// The Trigger Pulse is Valid
 	T2CONbits.TON = 0;
-	if (ecb_data.config.control_state == STATE_XRAY_ON) {
+	if (ecb_data.control_state == STATE_XRAY_ON) {
 	  // Enable all of the triggers
 	  OC1CON = OCxCON_VALUE;
 	  OC2CON = OCxCON_VALUE;
@@ -3300,49 +3327,6 @@ void __attribute__((interrupt, no_auto_psv)) _DefaultInterrupt(void) {
 
 
 
-/*
-
-unsigned int ETMEEPromPrivateReadStatusSPITest() {
-  unsigned int spi_error;
-  unsigned long temp;
-  unsigned int return_data;
-
-  ETMClearPin(external_eeprom_SPI.pin_chip_select_not);
-  
-  spi_error = 0;
-  
-  // FORCE 8 Bit MODE command word
-  if (external_eeprom_SPI.spi_port == ETM_SPI_PORT_1) {
-    SPI1CONbits.MODE16 = 0;
-  } else {
-    SPI2CONbits.MODE16 = 0;
-  }
-
-  // Send out the Read Status
-  if (spi_error == 0) {
-    temp = SendAndReceiveSPI(READ_STATUS_COMMAND_BYTE, external_eeprom_SPI.spi_port);
-    if (temp == 0x11110000) {
-      spi_error = 0b00000001;
-    }
-  }
-  // Read in the status byte
-  if (spi_error == 0) {
-    temp = SendAndReceiveSPI(0, external_eeprom_SPI.spi_port);
-    if (temp == 0x11110000) {
-      spi_error = 0b00000001;
-    }
-  }
-
-  ETMSetPin(external_eeprom_SPI.pin_chip_select_not);
-  return_data = temp;
-  
-  return return_data;
-}
-
-*/
-
-
-
 
 void MCP23S18Setup(unsigned long pin_chip_select_not,
 		   unsigned char spi_port,
@@ -3366,98 +3350,36 @@ void MCP23S18Setup(unsigned long pin_chip_select_not,
 }
 
 
-#define OP_CODE_ADDRESS_PORT_DATA_READ  0b0100000100000000
+#define DISCRETE_INPUT_XOR_MASK 0b1100000001101000
+#define OP_CODE_ADDRESS_PORT_DATA_READ  0b0100000100010010
 
-
-#define OP_CODE_DATA_READ               0b01000001
-
-unsigned long MCP23S18ReadInputs(void) {
-  unsigned long temp[30];
-
-
-
-    // FORCE 8 Bit MODE command word
-  if (mcp23S18_spi_port == ETM_SPI_PORT_1) {
-    SPI1CONbits.MODE16 = 0;
-  } else {
-    SPI2CONbits.MODE16 = 0;
-    //SPI2CONbits.CKP = 1;  // Nominally 0
-    //SPI2CONbits.CKE = 1;  // Nomianlly 1
-  }
+unsigned int MCP23S18UpdateInputs(void) {
+  unsigned long return_value;
+  unsigned int temp;
+  // This assumes SPI Port is configured as 16bit
 
   ETMClearPin(mcp23S18_pin_chip_select_not);
-  /*
-  temp[0] = SendAndReceiveSPI(OP_CODE_ADDRESS_PORT_DATA_READ, mcp23S18_spi_port);  // Send out the op code and address
-  temp[1] = SendAndReceiveSPI(0, mcp23S18_spi_port);                          // Read the port data
-  temp[2] = SendAndReceiveSPI(0, mcp23S18_spi_port);                          // Read the port data
-  temp[3] = SendAndReceiveSPI(0, mcp23S18_spi_port);                          // Read the port data
-  temp[4] = SendAndReceiveSPI(0, mcp23S18_spi_port);                          // Read the port data
-  temp[5] = SendAndReceiveSPI(0, mcp23S18_spi_port);                          // Read the port data
-  temp[6] = SendAndReceiveSPI(0, mcp23S18_spi_port);                          // Read the port data
-  temp[7] = SendAndReceiveSPI(0, mcp23S18_spi_port);                          // Read the port data
-  */
 
-  temp[0] = SendAndReceiveSPI(OP_CODE_DATA_READ, mcp23S18_spi_port);
-  temp[1] = SendAndReceiveSPI(0, mcp23S18_spi_port);
-  temp[2] = SendAndReceiveSPI(0, mcp23S18_spi_port);
-  temp[3] = SendAndReceiveSPI(0, mcp23S18_spi_port);
-  temp[4] = SendAndReceiveSPI(0, mcp23S18_spi_port);
-  temp[5] = SendAndReceiveSPI(0, mcp23S18_spi_port);
-  temp[6] = SendAndReceiveSPI(0, mcp23S18_spi_port);
-  temp[7] = SendAndReceiveSPI(0, mcp23S18_spi_port);
-  temp[8] = SendAndReceiveSPI(0, mcp23S18_spi_port);
-  temp[9] = SendAndReceiveSPI(0, mcp23S18_spi_port);
-  temp[10] = SendAndReceiveSPI(0, mcp23S18_spi_port);
-  temp[11] = SendAndReceiveSPI(0, mcp23S18_spi_port);
-  temp[12] = SendAndReceiveSPI(0, mcp23S18_spi_port);
-  temp[13] = SendAndReceiveSPI(0, mcp23S18_spi_port);
-  temp[14] = SendAndReceiveSPI(0, mcp23S18_spi_port);
-  temp[15] = SendAndReceiveSPI(0, mcp23S18_spi_port);
-  temp[16] = SendAndReceiveSPI(0, mcp23S18_spi_port);
-  temp[17] = SendAndReceiveSPI(0, mcp23S18_spi_port);
-  temp[18] = SendAndReceiveSPI(0, mcp23S18_spi_port);
-  temp[19] = SendAndReceiveSPI(0, mcp23S18_spi_port);
-  temp[20] = SendAndReceiveSPI(0, mcp23S18_spi_port);
-  temp[21] = SendAndReceiveSPI(0, mcp23S18_spi_port);
-  temp[22] = SendAndReceiveSPI(0, mcp23S18_spi_port);
-  temp[23] = SendAndReceiveSPI(0, mcp23S18_spi_port);
-  temp[24] = SendAndReceiveSPI(0, mcp23S18_spi_port);
-  temp[25] = SendAndReceiveSPI(0, mcp23S18_spi_port);
-  temp[26] = SendAndReceiveSPI(0, mcp23S18_spi_port);
-  temp[27] = SendAndReceiveSPI(0, mcp23S18_spi_port);
-  temp[28] = SendAndReceiveSPI(0, mcp23S18_spi_port);
-  temp[29] = SendAndReceiveSPI(0, mcp23S18_spi_port);  
-  
-
-  ETMSetPin(mcp23S18_pin_chip_select_not);
-
-
-  // Switch back to 16 bit mode
-  if (mcp23S18_spi_port == ETM_SPI_PORT_1) {
-    SPI1CONbits.MODE16 = 1;
-  } else {
-    SPI2CONbits.MODE16 = 1;
+  // Send out the op code and address
+  if (SendAndReceiveSPI(OP_CODE_ADDRESS_PORT_DATA_READ, mcp23S18_spi_port) & 0xFFFF0000) {
+    // There was an error sending out the op code and address
+    ETMSetPin(mcp23S18_pin_chip_select_not);
+    return 0;
   }
 
-  
-  Nop();
-  Nop();
-  Nop();
-  Nop();
+  return_value = SendAndReceiveSPI(0, mcp23S18_spi_port);
+  // Read the port values
+  if (return_value & 0xFFFF0000) {
+    // There was an error reading the port data
+    ETMSetPin(mcp23S18_pin_chip_select_not);
+    return 0;
+  }
 
-
+  ETMSetPin(mcp23S18_pin_chip_select_not);
   
-  return temp[0];
+  temp = return_value;
+  temp ^= DISCRETE_INPUT_XOR_MASK;
+  *(unsigned int*)&ecb_data.discrete_inputs = temp;
+  
+  return 0xFFFF;
 }
-
-
-
-
-
-
-
-
-
-
-
-

@@ -122,6 +122,14 @@ typedef struct {
 } ETMCanHighSpeedData;
 // 19 words
 
+typedef struct {
+  unsigned int data_a[256];
+  unsigned int data_b[256];
+  unsigned char data_type;
+  unsigned char active_register;
+} TYPE_SCOPE_DATA;
+
+
 
 
 #define _CONTROL_NOT_READY            local_data_ecb.status.control_notice_bits.control_not_ready

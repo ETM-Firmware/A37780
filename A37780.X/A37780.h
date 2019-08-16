@@ -76,48 +76,6 @@ typedef struct {
 } TYPE_SYSTEM_COUNTERS;
 */
 
-typedef struct {
-  ETMCanStatusRegister             status;
-  unsigned int                     log_data[24];
-  unsigned int                     config_data[8];
-} TYPE_ETM_CAL_SLAVE_MIRROR;
-
-typedef struct {
-  unsigned int                     custom[16];
-  unsigned int                     standard[48];
-  unsigned int                     memory[4];
-  unsigned int                     power_rail[4];
-} TYPE_DEBUG_DATA;
-
-
-#define SCOPE_DATA_SIZE   64
-typedef struct {
-  unsigned int                    buffer_a[SCOPE_DATA_SIZE];
-  unsigned int                    buffer_b[SCOPE_DATA_SIZE];
-  unsigned char                   buffer_a_ready_to_send;
-  unsigned char                   buffer_a_sent;
-  unsigned char                   buffer_b_ready_to_send;
-  unsigned char                   buffer_b_sent;
-} TYPE_SCOPE_DATA;
-
-#define HVPS_DATA_SIZE   256
-typedef struct {
-  unsigned char                   buffer_a[HVPS_DATA_SIZE];
-  unsigned char                   buffer_b[HVPS_DATA_SIZE];
-  unsigned char                   buffer_a_ready_to_send;
-  unsigned char                   buffer_a_sent;
-  unsigned char                   buffer_b_ready_to_send;
-  unsigned char                   buffer_b_sent;
-} TYPE_HV_VMON_DATA;
-
-
-typedef struct {
-  unsigned int                    pulse_id;
-  unsigned int                    pulse_info; // what there an arc on this pulse???
-  unsigned int                    data[50];
-  unsigned char                   data_n;                    
-} TYPE_MAGNETRON_CURRENT_DATA;
-
 
 /*
   Hardware Module Resource Usage
@@ -410,66 +368,16 @@ typedef struct {
   unsigned int thyratron_warmup_remaining; 
   unsigned int magnetron_warmup_remaining;
   unsigned int gun_warmup_remaining;
-
-  
-  //TYPE_PUBLIC_ANALOG_INPUT analog_input_5v_mon;                    // 1mV per LSB
-  //TYPE_PUBLIC_ANALOG_INPUT analog_input_3v3_mon;                   // 1mV per LSB
-
-  //unsigned int control_state;
-  //unsigned int thyratron_warmup_counter_seconds;
-  //unsigned int magnetron_heater_warmup_counter_seconds;
-  //unsigned int gun_driver_heater_warmup_counter_seconds;
-
-  //unsigned int millisecond_counter;
-  //unsigned int warmup_timer_stage;
-  
   unsigned int gun_heater_holdoff_timer;
-
-  
-  //RTC_TIME time_now;
-  //unsigned long time_seconds_now;
-  
-  //unsigned int send_pulse_sync_config;
   unsigned int drive_up_timer;
-
-  //unsigned int average_output_power_watts;
-  //unsigned int event_log_counter;
   
   unsigned int startup_counter;
 
   unsigned long time_seconds_now;
 
-  /*
-  unsigned int no_connect_count_ion_pump_board;
-  unsigned int no_connect_count_magnetron_current_board;
-  unsigned int no_connect_count_pulse_sync_board;
-  unsigned int no_connect_count_hv_lambda_board;
-  unsigned int no_connect_count_afc_board;
-  unsigned int no_connect_count_cooling_interface_board;
-  unsigned int no_connect_count_heater_magnet_board;
-  unsigned int no_connect_count_gun_driver_board;
-
-  unsigned int buffer_a_ready_to_send;
-  unsigned int buffer_b_ready_to_send;
-  unsigned int buffer_a_sent;
-  unsigned int buffer_b_sent;
-  //unsigned int personality_select_from_pulse_sync;
-  //unsigned int system_serial_number;  
-  */
-  
   unsigned int reset_requested;  //DPARKER evaulate this
   unsigned int reset_hold_timer;
-
-
   unsigned int warmup_done;
-  
-  
-  
-  //unsigned int most_recent_ref_detector_reading;
-
-
-
-  //unsigned int most_recent_watchdog_reading;
 
   unsigned int access_mode;
   unsigned int service_passcode;
@@ -493,6 +401,19 @@ typedef struct {
   unsigned int x_ray_on_while_beam_disabled_counter;
   unsigned int x_ray_on_wrong_state_counter;
 
+  unsigned int adc_reading_at_turn_on;
+
+  
+  TYPE_DIGITAL_INPUT pfn_fan_fault_input;
+  TYPE_DIGITAL_INPUT x_ray_on_mismatch_input;
+  TYPE_DIGITAL_INPUT x_ray_on_without_beam_enable_input;
+  TYPE_DIGITAL_INPUT x_ray_on_wrong_state_input;
+
+
+  unsigned int *ram_ptr_a;
+  unsigned int *ram_ptr_b;
+  unsigned int *ram_ptr_c;
+  
 } A37780GlobalVars;
 
 

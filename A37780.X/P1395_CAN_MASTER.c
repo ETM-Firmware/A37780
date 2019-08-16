@@ -2,6 +2,18 @@
 #include "P1395_CAN_MASTER.h"
 #include "ETM.h"
 #include "P1395_CAN_CORE.h"
+#include "ETM_LINAC_COM.h"
+
+
+
+
+
+
+
+
+void SetupPulseLog(void);
+
+
 
 // ---------- Debug Holding Variables ------------------- //
 ETMCanBoardData local_data_mirror[NUMBER_OF_DATA_MIRRORS];
@@ -10,6 +22,11 @@ ETMCanBoardDebuggingData debug_data_slave_mirror;
 
 // ---------------  Global Variables that are to be used by the main source code ------------------- //
 ETMCanBoardDebuggingData debug_data_ecb;
+
+
+
+TYPE_SCOPE_DATA scope_data;
+TYPE_PULSE_LOG  pulse_log;
 
 
 
@@ -81,7 +98,11 @@ void ETMCanMasterInitialize(unsigned int requested_can_port, unsigned long fcy, 
   etm_can_master_can_led = can_operation_led;
 
   persistent_data_reset_count++;
-
+  // DPARKER this needs to be a setting somehow
+  if (_NOT_LOGGED_0) {
+    persistent_data_reset_count = 0;
+    persistent_data_can_timeout_count = 0;
+  }
 
   sync_message.sync_0_control_word.sync_0_reset_enable = 0;
   sync_message.sync_0_control_word.sync_1_high_speed_logging_enabled = 0;
@@ -188,29 +209,6 @@ void ETMCanMasterInitialize(unsigned int requested_can_port, unsigned long fcy, 
     // DPARKER THIS IS NOT IMPLIMENTED YET
   }
 
-  // DPARKER placing data for debugging ethernet.
-  local_data_mirror[ETM_CAN_ADDR_HV_LAMBDA_BOARD].log_data[0] = 0;
-  local_data_mirror[ETM_CAN_ADDR_HV_LAMBDA_BOARD].log_data[1] = 1;
-  local_data_mirror[ETM_CAN_ADDR_HV_LAMBDA_BOARD].log_data[2] = 2;
-  local_data_mirror[ETM_CAN_ADDR_HV_LAMBDA_BOARD].log_data[3] = 3;
-  local_data_mirror[ETM_CAN_ADDR_HV_LAMBDA_BOARD].log_data[4] = 4;
-  local_data_mirror[ETM_CAN_ADDR_HV_LAMBDA_BOARD].log_data[5] = 5;
-  local_data_mirror[ETM_CAN_ADDR_HV_LAMBDA_BOARD].log_data[6] = 6;
-  local_data_mirror[ETM_CAN_ADDR_HV_LAMBDA_BOARD].log_data[7] = 7;
-  local_data_mirror[ETM_CAN_ADDR_HV_LAMBDA_BOARD].log_data[8] = 8;
-  local_data_mirror[ETM_CAN_ADDR_HV_LAMBDA_BOARD].log_data[9] = 9;
-  local_data_mirror[ETM_CAN_ADDR_HV_LAMBDA_BOARD].log_data[10] = 10;
-
-
-
-  debug_data_slave_mirror.debug_reg[0] = 0;
-  debug_data_slave_mirror.debug_reg[1] = 1;
-  debug_data_slave_mirror.debug_reg[2] = 2;
-  debug_data_slave_mirror.debug_reg[3] = 3;
-  debug_data_slave_mirror.debug_reg[4] = 4;
-  debug_data_slave_mirror.debug_reg[5] = 5;
-  debug_data_slave_mirror.debug_reg[6] = 6;
-  debug_data_slave_mirror.debug_reg[7] = 7;
 }
 
 #define SYNC_MESSAGE_MAX_TRANSMISSION_PERIOD               50  // 50mS.  If a sync message has not been sent by user code (following a trigger or change in sync control bits) one will be sent by the can module
@@ -257,6 +255,28 @@ void ETMCanMasterDoCan(void) {
 
   debug_data_ecb.can_tx_buf_overflow = etm_can_master_tx_message_buffer.message_overwrite_count;
   debug_data_ecb.can_rx_log_buf_overflow = etm_can_master_rx_data_log_buffer.message_overwrite_count;
+
+  
+  debug_data_ecb.eeprom_internal_read_count = ETMEEPromReturnDebugData(ETM_EEPROM_DEBUG_DATA_READ_INTERNAL_COUNT);
+  debug_data_ecb.eeprom_internal_read_error = ETMEEPromReturnDebugData(ETM_EEPROM_DEBUG_DATA_READ_INTERNAL_ERROR);
+  debug_data_ecb.eeprom_internal_write_count = ETMEEPromReturnDebugData(ETM_EEPROM_DEBUG_DATA_WRITE_INTERNAL_COUNT);
+  debug_data_ecb.eeprom_internal_write_error = ETMEEPromReturnDebugData(ETM_EEPROM_DEBUG_DATA_WRITE_INTERNAL_ERROR);
+
+
+  debug_data_ecb.eeprom_i2c_read_count = ETMEEPromReturnDebugData(ETM_EEPROM_DEBUG_DATA_READ_I2C_COUNT);
+  debug_data_ecb.eeprom_i2c_read_error = ETMEEPromReturnDebugData(ETM_EEPROM_DEBUG_DATA_READ_I2C_ERROR);
+  debug_data_ecb.eeprom_i2c_write_count = ETMEEPromReturnDebugData(ETM_EEPROM_DEBUG_DATA_WRITE_I2C_COUNT);
+  debug_data_ecb.eeprom_i2c_write_error = ETMEEPromReturnDebugData(ETM_EEPROM_DEBUG_DATA_WRITE_I2C_ERROR);
+
+  debug_data_ecb.eeprom_spi_read_count = ETMEEPromReturnDebugData(ETM_EEPROM_DEBUG_DATA_READ_SPI_COUNT);
+  debug_data_ecb.eeprom_spi_read_error = ETMEEPromReturnDebugData(ETM_EEPROM_DEBUG_DATA_READ_SPI_ERROR);
+  debug_data_ecb.eeprom_spi_write_count = ETMEEPromReturnDebugData(ETM_EEPROM_DEBUG_DATA_WRITE_SPI_COUNT);
+  debug_data_ecb.eeprom_spi_write_error = ETMEEPromReturnDebugData(ETM_EEPROM_DEBUG_DATA_WRITE_SPI_ERROR);
+  
+
+  debug_data_ecb.eeprom_crc_error_count = ETMEEPromReturnDebugData(ETM_EEPROM_DEBUG_DATA_CRC_ERROR);
+
+
 }
 
 static void LocalTransmitSync(void) {
@@ -460,9 +480,133 @@ void ETMCanMasterSyncSet(unsigned char sync_setting_select, unsigned char value)
 }
 
 void ETMCanMasterSendSyncMessage(unsigned char dose_level, unsigned char pulse_count) {
+  // Set up the fast log register
   sync_message.pulse_count = pulse_count;
   sync_message.next_energy_level = dose_level;
   LocalTransmitSync();
+
+  if (sync_message.sync_0_control_word.sync_1_high_speed_logging_enabled) {
+    SetupPulseLog();
+  }
+}
+
+
+#define LOG_DEFAULT_VALUE 0xFFEF
+
+
+
+void ETMCanMasterClearHighSpeedLogging(void) {
+  unsigned int *data_ptr;
+  unsigned int n;
+  data_ptr = (unsigned int*)&pulse_log;
+
+  for (n = 0; n < (sizeof(TYPE_PULSE_LOG)>>1); n++) {
+    *data_ptr = 0;
+    data_ptr++;
+  }
+}
+
+
+void SetupPulseLog(void) {
+  unsigned char index;
+  
+  if (sync_message.pulse_count & 0x10) {
+    // Filling data_b
+    index = (sync_message.pulse_count >> 1) & 0x07;  
+    if (sync_message.pulse_count & 0x1) {
+      // This is an odd pulse count - Only update the ECB Trigger data
+      pulse_log.data_b[index].gun_trigger_width_b = 100;
+      pulse_log.data_b[index].gun_trigger_start_b = sync_message.pulse_count;
+    } else {
+      // Initialize the array
+      if (index == 2) {
+      // It is time to send the other log
+      pulse_log.data_a_ready_to_send = 1;
+      }
+
+      pulse_log.data_b[index].pulse_count_a = sync_message.pulse_count;
+      pulse_log.data_b[index].status_bits_a_and_b = 0; // DPARKER what to put here 
+      pulse_log.data_b[index].trigger_time_a = ETMTickGet();
+      
+      pulse_log.data_b[index].gun_trigger_width_a = 200; // DPARKER PUT REAL GRID TIMING HERE
+      pulse_log.data_b[index].gun_trigger_start_a = sync_message.pulse_count; // DPARKER PUT REAL GRID TIMING HERE
+      pulse_log.data_b[index].gun_trigger_width_b = LOG_DEFAULT_VALUE;
+      pulse_log.data_b[index].gun_trigger_start_b = LOG_DEFAULT_VALUE;
+      
+      pulse_log.data_b[index].hvps_eoc_a = LOG_DEFAULT_VALUE;
+      pulse_log.data_b[index].hvps_spare_a = LOG_DEFAULT_VALUE;
+      pulse_log.data_b[index].hvps_eoc_b = LOG_DEFAULT_VALUE;
+      pulse_log.data_b[index].hvps_spare_b = LOG_DEFAULT_VALUE;
+      
+      pulse_log.data_b[index].afc_current_position_a = LOG_DEFAULT_VALUE;
+      pulse_log.data_b[index].afc_reverse_reading_a = LOG_DEFAULT_VALUE;
+      pulse_log.data_b[index].afc_current_position_b = LOG_DEFAULT_VALUE;
+      pulse_log.data_b[index].afc_reverse_reading_b = LOG_DEFAULT_VALUE;
+      
+      pulse_log.data_b[index].magnetron_current_sample_a = LOG_DEFAULT_VALUE;
+      pulse_log.data_b[index].magnetron_current_integral_a = LOG_DEFAULT_VALUE;
+      pulse_log.data_b[index].magnetron_current_sample_b = LOG_DEFAULT_VALUE;
+      pulse_log.data_b[index].magnetron_current_integral_b = LOG_DEFAULT_VALUE;
+      
+      pulse_log.data_b[index].target_current_sample_a = LOG_DEFAULT_VALUE;
+      pulse_log.data_b[index].target_current_integral_a = LOG_DEFAULT_VALUE;
+      pulse_log.data_b[index].target_current_sample_b = LOG_DEFAULT_VALUE;
+      pulse_log.data_b[index].target_current_integral_b = LOG_DEFAULT_VALUE;
+      
+      pulse_log.data_b[index].gun_driver_data_0_a = LOG_DEFAULT_VALUE;
+      pulse_log.data_b[index].gun_driver_data_1_a = LOG_DEFAULT_VALUE;
+      pulse_log.data_b[index].gun_driver_data_0_b = LOG_DEFAULT_VALUE;
+      pulse_log.data_b[index].gun_driver_data_1_b = LOG_DEFAULT_VALUE;
+    }
+  } else {
+    // Filling data_a
+    index = (sync_message.pulse_count >> 1) & 0x07;  
+    if (sync_message.pulse_count & 0x1) {
+      // This is an odd pulse count - Only update the ECB Trigger data
+      pulse_log.data_a[index].gun_trigger_width_b = 300;
+      pulse_log.data_a[index].gun_trigger_start_b = sync_message.pulse_count;
+    } else {
+      // Initialize the array
+      if (index == 2) {
+	// It is time to send the other log
+	pulse_log.data_b_ready_to_send = 1;
+      }
+
+      pulse_log.data_a[index].pulse_count_a = sync_message.pulse_count;
+      pulse_log.data_a[index].status_bits_a_and_b = 0; // DPARKER what to put here 
+      pulse_log.data_a[index].trigger_time_a = ETMTickGet();
+      
+      pulse_log.data_a[index].gun_trigger_width_a = 400; // DPARKER PUT REAL GRID TIMING HERE
+      pulse_log.data_a[index].gun_trigger_start_a = sync_message.pulse_count; // DPARKER PUT REAL GRID TIMING HERE
+      pulse_log.data_a[index].gun_trigger_width_b = LOG_DEFAULT_VALUE;
+      pulse_log.data_a[index].gun_trigger_start_b = LOG_DEFAULT_VALUE;
+      
+      pulse_log.data_a[index].hvps_eoc_a = LOG_DEFAULT_VALUE;
+      pulse_log.data_a[index].hvps_spare_a = LOG_DEFAULT_VALUE;
+      pulse_log.data_a[index].hvps_eoc_b = LOG_DEFAULT_VALUE;
+      pulse_log.data_a[index].hvps_spare_b = LOG_DEFAULT_VALUE;
+      
+      pulse_log.data_a[index].afc_current_position_a = LOG_DEFAULT_VALUE;
+      pulse_log.data_a[index].afc_reverse_reading_a = LOG_DEFAULT_VALUE;
+      pulse_log.data_a[index].afc_current_position_b = LOG_DEFAULT_VALUE;
+      pulse_log.data_a[index].afc_reverse_reading_b = LOG_DEFAULT_VALUE;
+      
+      pulse_log.data_a[index].magnetron_current_sample_a = LOG_DEFAULT_VALUE;
+      pulse_log.data_a[index].magnetron_current_integral_a = LOG_DEFAULT_VALUE;
+      pulse_log.data_a[index].magnetron_current_sample_b = LOG_DEFAULT_VALUE;
+      pulse_log.data_a[index].magnetron_current_integral_b = LOG_DEFAULT_VALUE;
+      
+      pulse_log.data_a[index].target_current_sample_a = LOG_DEFAULT_VALUE;
+      pulse_log.data_a[index].target_current_integral_a = LOG_DEFAULT_VALUE;
+      pulse_log.data_a[index].target_current_sample_b = LOG_DEFAULT_VALUE;
+      pulse_log.data_a[index].target_current_integral_b = LOG_DEFAULT_VALUE;
+      
+      pulse_log.data_a[index].gun_driver_data_0_a = LOG_DEFAULT_VALUE;
+      pulse_log.data_a[index].gun_driver_data_1_a = LOG_DEFAULT_VALUE;
+      pulse_log.data_a[index].gun_driver_data_0_b = LOG_DEFAULT_VALUE;
+      pulse_log.data_a[index].gun_driver_data_1_b = LOG_DEFAULT_VALUE;
+    }
+  }
 }
 
 
@@ -491,7 +635,7 @@ static void LocalReceiveSlaveStatus(ETMCanMessage* message_ptr) {
   status_message.not_logged_bits     = *(ETMCanStatusRegisterNotLoggedBits*)&message_ptr->word3;
 
 
-  if (((etm_can_master_boards_to_ignore >> source_board) && 0x0001) == 0) {
+  if (((etm_can_master_boards_to_ignore >> source_board) & 0x0001) == 0) {
     // We are not ignoring faults from this board
     if (status_message.control_notice_bits.control_not_ready) {
       can_master_all_slaves_ready = 0x0000;
@@ -894,6 +1038,12 @@ static void LocalUpdateSlaveEventLog(ETMCanStatusRegister* previous_status, ETMC
 }
 
 
+void PulseDataLog(log_id, board_id, word3, word2, word1, word0) {
+
+}
+
+
+
 #define ETM_CAN_MASTER_SLAVE_TIMEOUT_MILLI_SECONDS        300
 #define LOG_ID_SLAVE_CONNECTION_TIMEOUT_BASE_ID           0x0000
 #define LOG_ID_SLAVE_CONNECTION_ESTABLISHED_BASE_ID       0x0080
@@ -912,7 +1062,7 @@ static void LocalUpdateSlaveTimeout(void) {
   // Check all 11 Slaves for timeout
   // No need to check the ECB for timeout as that does not make sense
   for(n = 0; n < NUMBER_OF_DATA_MIRRORS; n++) {
-    if (ignore && 0x0001) {
+    if (ignore & 0x0001) {
       // We are ignoring this board
       local_data_mirror[n].connection_timeout = 0;
     } else {
@@ -920,6 +1070,8 @@ static void LocalUpdateSlaveTimeout(void) {
 	if (local_data_mirror[n].connection_timeout == 0) {
 	  // This is a new timeout
 	  SendToEventLog(LOG_ID_SLAVE_CONNECTION_TIMEOUT_BASE_ID + n);
+	  persistent_data_can_timeout_count++;
+	  debug_data_ecb.can_timeout = persistent_data_can_timeout_count;
 	}
 	local_data_mirror[n].connection_timeout = 0xFFFF;
 	etm_can_master_all_boards_connected = 0x0000;
@@ -1069,6 +1221,12 @@ static void LocalLogDebugDataFromSlave(unsigned int data_log_id, unsigned int bo
 
 
 
+static void ScopeDataLog(unsigned int data_log_id, unsigned int board_id, unsigned int data_3, unsigned int data_2, unsigned int data_1, unsigned int data_0) {
+  
+
+}
+  
+
 void ETMCanMasterClearECBDebug(void) {
   LocalClearDebug();
 }
@@ -1097,7 +1255,7 @@ static void LocalUpdateSlaveNotReady(void) {
   ignore = etm_can_master_boards_to_ignore;
   
   for(n = 0; n < NUMBER_OF_DATA_MIRRORS; n++) {
-    if (ignore && 0x0001) {
+    if (ignore & 0x0001) {
       // We are ignoring this board
     } else {
       if(local_data_mirror[n].status.control_notice_bits.control_not_ready) {
@@ -1227,7 +1385,7 @@ unsigned int ETMCanMasterCheckAllBoardsConfigured(void) {
   ignore = etm_can_master_boards_to_ignore;
   
   for(n = 0; n < NUMBER_OF_DATA_MIRRORS; n++) {
-    if ((ignore && 0x0001) == 0) {
+    if ((ignore & 0x0001) == 0) {
       // We are not ignoring this board
       if (local_data_mirror[n].status.control_notice_bits.control_not_configured) {
 	return 0;
@@ -1250,7 +1408,7 @@ unsigned int ETMCanMasterCheckSlaveFault(void) {
   ignore = etm_can_master_boards_to_ignore;
   
   for(n = 0; n < NUMBER_OF_DATA_MIRRORS; n++) {
-    if ((ignore && 0x0001) == 0) {
+    if ((ignore & 0x0001) == 0) {
       // We are not ignoring this board
       if (*(unsigned int*)&local_data_mirror[n].status.fault_bits) {
 	return 0xFFFF;
@@ -1272,7 +1430,7 @@ unsigned int ETMCanMasterCheckSlaveConfigured(unsigned int board_id) {
 
   ignore = etm_can_master_boards_to_ignore;
   ignore >>= board_id;
-  if ((ignore && 0x0001) == 0) {
+  if ((ignore & 0x0001) == 0) {
     // We are not ignoring this board
     if (local_data_mirror[board_id].status.control_notice_bits.control_not_configured) {
       return 0;
@@ -1297,7 +1455,7 @@ unsigned int ETMCanMasterCheckSlaveReady(unsigned int board_id) {
     return 0x0000;
   }
   
-  if ((etm_can_master_boards_to_ignore >> board_id) && 0x0001) {
+  if ((etm_can_master_boards_to_ignore >> board_id) & 0x0001) {
     // we are ignoring this board
     return 0xFFFF;
   }
@@ -1326,7 +1484,7 @@ unsigned int ETMCanMasterReturnSlaveStatusBit(unsigned int bit_select, unsigned 
     return default_value;
   }
   
-  if ((etm_can_master_boards_to_ignore >> board_id) && 0x0001) {
+  if ((etm_can_master_boards_to_ignore >> board_id) & 0x0001) {
     // we are ignoring this board
     return default_value;
   }

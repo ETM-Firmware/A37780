@@ -47,6 +47,7 @@ void ETMCanMasterSendSlaveRAMDebugLocations(unsigned int board_id, unsigned int 
 void ETMCanMasterSendSlaveEEPROMDebug(unsigned int board_id, unsigned int eeprom_register);
 void ETMCanMasterSendDiscreteCMD(unsigned int discrete_cmd_id);
 void ETMCanMasterSendSlaveClearDebug(void);
+void ETMCanMasterClearHighSpeedLogging(void);
 
 
 
@@ -227,7 +228,7 @@ typedef struct {
   unsigned int             system_serial_number_low_word;
   unsigned int             date_of_atp; // upper 7 bits (years since 2000), lower 9 bits, day of year
   unsigned int             atp_technician;
-  unsigned int             control_state;
+  unsigned int             unused;
   unsigned int             crc_do_not_write;
 } TYPE_ECB_INFO;
 
@@ -248,7 +249,25 @@ typedef struct {
 
 //extern ETMCanBoardDebuggingData debug_data_ecb;
 
-
+typedef struct {
+  unsigned b0_pwr_c_flt:1;
+  unsigned b1_pwr_b_flt:1;
+  unsigned b2_pwr_a_flt:1;
+  unsigned b3_beam_enable_status:1;
+  unsigned b4_spare_input_ok:1;
+  unsigned b5_interlock_2_open:1;
+  unsigned b6_interlock_1_open:1;
+  unsigned b7_unused:1;
+  
+  unsigned a0_phase_monitor_flt:1;
+  unsigned a1_24v_monitor_flt:1;
+  unsigned a2_ac_contactor_open:1;
+  unsigned a3_hv_contactor_open:1;
+  unsigned a4_estop_1_open:1;
+  unsigned a5_estop_2_open:1;
+  unsigned a6_panel_switch_open:1;
+  unsigned a7_keylock_open:1;
+} TYPE_IO_EXPANDER;
 
 
 typedef struct {
@@ -262,6 +281,8 @@ typedef struct {
   TYPE_DOSE_COMP       dose_compensation_group_a;
   TYPE_DOSE_COMP       dose_compensation_group_b;
   TYPE_ECB_INFO        config;
+  TYPE_IO_EXPANDER     discrete_inputs;
+  unsigned int         control_state;
 } TYPE_ECB_DATA;
 
 #define NUMBER_OF_DATA_MIRRORS 10  //10 Slave Can Channels
