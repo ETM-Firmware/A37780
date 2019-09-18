@@ -45,16 +45,16 @@
   
 */
 
-#define HOLDING_REGUSTER_STAUTS_WRITING_DATA                0
-#define HOLDING_REGISTER_STATUS_WAITING_FOR_TRANSMIT        1
-#define HOLDING_REGISTER_STATUS_WAITING_TRANSMIT_COMPLETE   2
+//#define HOLDING_REGISTER_STAUTS_WRITING_DATA                0
+//#define HOLDING_REGISTER_STATUS_WAITING_FOR_TRANSMIT        1
+//#define HOLDING_REGISTER_STATUS_WAITING_TRANSMIT_COMPLETE   2
 
 
-unsigned int pulse_by_pulse_holding_register_a_status;
-unsigned int pulse_by_pulse_holding_register_b_status;
+//unsigned int pulse_by_pulse_holding_register_a_status;
+//unsigned int pulse_by_pulse_holding_register_b_status;
 
-extern ETMCanHighSpeedData pulse_data_buffer_a[HIGH_SPEED_DATA_BUFFER_SIZE];
-extern ETMCanHighSpeedData pulse_data_buffer_b[HIGH_SPEED_DATA_BUFFER_SIZE];
+//extern ETMCanHighSpeedData pulse_data_buffer_a[HIGH_SPEED_DATA_BUFFER_SIZE];
+..extern ETMCanHighSpeedData pulse_data_buffer_b[HIGH_SPEED_DATA_BUFFER_SIZE];
 
 
 
@@ -68,7 +68,7 @@ extern ETMCanHighSpeedData pulse_data_buffer_b[HIGH_SPEED_DATA_BUFFER_SIZE];
 
 
 
-
+/*
 
 
 typedef struct {
@@ -121,6 +121,9 @@ typedef struct {
   unsigned int psync_readback_low_energy_grid_width_and_delay;
 } ETMCanHighSpeedData;
 // 19 words
+
+
+*/
 
 typedef struct {
   unsigned int data_a[256];
@@ -308,7 +311,7 @@ void SendToScopeLog();
 
 
 
-
+/*
 
 typedef struct {
   // From ECB
@@ -351,7 +354,7 @@ typedef struct {
   
 } ETMCanHighSpeedData;
 
-
+*/
 
 void SendToPulseLog(unsigned int log_id, unsigned int word3, unsigned int word2, unsigned word1, unsigned int word0) {
   unsigned int pulse_count;

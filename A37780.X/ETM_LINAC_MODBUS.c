@@ -14,7 +14,11 @@
 #include "ETM_IO_PORTS.h"  //DPARKER Fix this
 #include "ETM_LINAC_COM.h"
 
-unsigned int etm_can_active_debugging_board_id;
+
+unsigned int password_seed;
+unsigned int etm_password;
+
+
 unsigned int sync_time_10ms_units;
 
 typedef struct {
@@ -59,6 +63,8 @@ static unsigned int NewMessageInEventLog(void);
 static unsigned int EventLogMessageSize(void);
 static unsigned char GetNextSendIndex(void);
 static void PrepareTXMessage(ETMModbusTXData *tx_data, unsigned char data_type);
+
+static unsigned int GeneratePassword(unsigned int password_seed);
 
 enum {
   MODBUS_WR_CYCLE_START,
@@ -322,27 +328,58 @@ static void PrepareTXMessage(ETMModbusTXData *tx_data, unsigned char data_type) 
       break;
 
     case MODBUS_WR_SCOPE_A:
-      tx_data->data_length = 0;
-      tx_data->data_ptr = (unsigned char *)&debug_data_ecb; // DUMMY LOCATION
-      tx_data->tx_ready = 0;
+      tx_data->data_length = SCOPE_DATA_SIZE;
+      if (scope_data_a.data_x_ready_to_send) {
+	tx_data->data_ptr = (unsigned char *)&scope_data_a.data[0];
+	scope_data_a.data_x_ready_to_send = 0;
+      } else {
+	tx_data->data_ptr = (unsigned char *)&scope_data_a.data[SCOPE_DATA_SIZE>>1];
+	scope_data_a.data_y_ready_to_send = 0;
+      }
+      tx_data->tx_ready = 1;
       break;
 
     case MODBUS_WR_SCOPE_B:
-      tx_data->data_length = 0;
-      tx_data->data_ptr = (unsigned char *)&debug_data_ecb; // DUMMY LOCATION
-      tx_data->tx_ready = 0;
+      tx_data->data_length = SCOPE_DATA_SIZE;
+      if (scope_data_b.data_x_ready_to_send) {
+	tx_data->data_ptr = (unsigned char *)&scope_data_b.data[0];
+	scope_data_b.data_x_ready_to_send = 0;
+      } else {
+	tx_data->data_ptr = (unsigned char *)&scope_data_b.data[SCOPE_DATA_SIZE>>1];
+	scope_data_b.data_y_ready_to_send = 0;
+      }
+      tx_data->tx_ready = 1;
       break;
 
     case MODBUS_WR_SCOPE_HV:
-      tx_data->data_length = 0;
-      tx_data->data_ptr = (unsigned char *)&debug_data_ecb; // DUMMY LOCATION
-      tx_data->tx_ready = 0;
+      _LATG0 = 0;
+      _LATC15 = 1;
+      tx_data->data_length = SCOPE_DATA_SIZE << 1;
+
+      if (scope_data_a.hv_vmon_ready_to_send && scope_data_b.hv_vmon_ready_to_send) {
+	if (scope_data_a.priority) {
+	  tx_data->data_ptr = (unsigned char *)&scope_data_a.data[0];
+	  scope_data_a.hv_vmon_ready_to_send = 0;
+	} else {
+	  tx_data->data_ptr = (unsigned char *)&scope_data_b.data[0];
+	  scope_data_b.hv_vmon_ready_to_send = 0;
+	}
+      } else {
+	if (scope_data_a.hv_vmon_ready_to_send) {
+	  tx_data->data_ptr = (unsigned char *)&scope_data_a.data[0];
+	  scope_data_a.hv_vmon_ready_to_send = 0;
+	} else {
+	  tx_data->data_ptr = (unsigned char *)&scope_data_b.data[0];
+	  scope_data_b.hv_vmon_ready_to_send = 0;
+	}
+      }
+      tx_data->tx_ready = 1;
       break;
 
     case MODBUS_WR_SCOPE_MAGNETRON_CURRENT:
-      tx_data->data_length = 0;
-      tx_data->data_ptr = (unsigned char *)&debug_data_ecb; // DUMMY LOCATION
-      tx_data->tx_ready = 0;
+      tx_data->data_length = 80;
+      tx_data->data_ptr = (unsigned char *)&scope_data_magnetron_current.pulse_data[0];
+      tx_data->tx_ready = 1;
       break;
 
     case MODBUS_RD_COMMAND_DETAIL:
@@ -415,25 +452,39 @@ void ETMModbusApplicationSpecificTXData(ETMModbusTXData* tx_data_to_send) {
   // See if there are any high speed messages to be sent
 
   send_message = 0;
-
+  if (_LATA6) {
+    _LATA6 = 0;
+  } else {
+    _LATA6 = 1;
+  }
+    
   if (pulse_log.data_a_ready_to_send || pulse_log.data_b_ready_to_send) {
     modbus_tx_index = MODBUS_WR_PULSE_LOG;
     send_message = 1;
     //pulse_log_ready_to_send = 0;
   } else if (0) {
     // FUTURE Event log counter is greater than 32
-  } else if (0) {
-    // FUTURE Scope trace A is ready to send
-  } else if (0) {
-    // FUTURE Scope trace B is ready to send
-  } else if (0) {
-    // FUTURE Scope trace High Voltage is ready to send
-  } else if (0) {
-    // FUTURE Magnetron Current Scope
+  } else if (scope_data_a.data_x_ready_to_send || scope_data_a.data_y_ready_to_send) {
+    // Transmit scope data a
+    modbus_tx_index = MODBUS_WR_SCOPE_A;
+    send_message = 1;
+  } else if (scope_data_b.data_x_ready_to_send || scope_data_b.data_y_ready_to_send) {
+    // Transmit scope data a
+    modbus_tx_index = MODBUS_WR_SCOPE_B;
+    send_message = 1;
+  } else if (scope_data_a.hv_vmon_ready_to_send || scope_data_b.hv_vmon_ready_to_send) {
+    // Transmit HV VMon data
+    modbus_tx_index = MODBUS_WR_SCOPE_HV;
+    send_message = 1;
+  } else if (scope_data_magnetron_current.data_status == SCOPE_DATA_FULL) {
+    modbus_command_request = 0;
+    // DPARKER Transmit the scope data to the GUI
+    modbus_tx_index = MODBUS_WR_SCOPE_MAGNETRON_CURRENT;
+    send_message = 1;
+    scope_data_magnetron_current.data_status = SCOPE_DATA_EMPTY;
   } else if (modbus_command_request) {
     modbus_tx_index = MODBUS_RD_COMMAND_DETAIL;
     send_message = 1;
-    debug_data_ecb.debug_reg[14]++;
     modbus_command_request = 0;
   } else {
     // Execute regularly scheduled command - No need to check to see if they were recieved we will resend them again soon enough
@@ -474,6 +525,11 @@ void ETMModbusApplicationSpecificRXData(unsigned char data_RX[]) {
   }
 
   sync_time_10ms_units = (data_RX[8] << 8) + data_RX[11];
+
+  if (password_seed == 0) {
+    password_seed = sync_time_10ms_units;
+    etm_password = GeneratePassword(password_seed);
+  }
   
   etm_can_active_debugging_board_id = data_RX[10];
   if (etm_can_active_debugging_board_id >= NUMBER_OF_DATA_MIRRORS ) {
@@ -491,6 +547,8 @@ unsigned int SendCalibrationDataToGUI(unsigned int index, unsigned int scale, un
 
 void ETMLinacModbusUpdate(void) {
   ETMTCPModbusTask();
+  _LATC15 = 0;
+
 }
 
 
@@ -529,7 +587,17 @@ void ETMLinacModbusInitialize(void) {
   ETMTCPModbusENCx24J600Initialize(&ENCx24J600_config);
 
   #define CONNECTION_TIMEOUT_MILLISECONDS  5000
-  #define RESPONSE_TIMEOUT_MILLISECONDS     200
+  #define RESPONSE_TIMEOUT_MILLISECONDS     500
 
   ETMTCPModbusInitialize(&ip_config, CONNECTION_TIMEOUT_MILLISECONDS, RESPONSE_TIMEOUT_MILLISECONDS);
+
+  password_seed = 0;
+  
+}
+
+static unsigned int GeneratePassword(unsigned int password_seed) {
+  unsigned int temp;
+
+  temp = password_seed ^ 0x4450;
+  return ETMCRCModbus(&temp, 2);
 }

@@ -1,20 +1,40 @@
 #ifndef __ETM_LINAC_COM_H
 #define __ETM_LINAC_COM_H
 
+extern unsigned int etm_can_active_debugging_board_id;
+
+
+
+#define SCOPE_DATA_SIZE  256
 
 typedef struct {
-  unsigned int  data_a[128];
-  unsigned int  data_b[128];
-  unsigned      data_a_ready_to_send:1;
-  unsigned      data_a_sent:1;
-  unsigned      data_b_ready_to_send:1;
-  unsigned      data_b_sent:1;
-  unsigned      unused:4;
-  unsigned char scope_type;
+  unsigned int  data[SCOPE_DATA_SIZE];
+  unsigned      data_x_ready_to_send:1;
+  unsigned      data_y_ready_to_send:1;
+  unsigned      hv_vmon_enabled:1;
+  unsigned      hv_vmon_buffer_active:1;
+  unsigned      hv_vmon_ready_to_send:1;
+  unsigned      priority:1;
+  unsigned      unused:2;
+  unsigned char write_location;
 } TYPE_SCOPE_DATA;
 
 
+typedef struct {
+  unsigned int pulse_data[40];
+  unsigned int data_status;  // 0 = empty,  20 = full
+} TYPE_SCOPE_PULSE_DATA;
 
+
+#define SCOPE_DATA_FULL    20
+#define SCOPE_DATA_EMPTY   0
+#define SCOPE_DATA_FILLING 10
+
+extern TYPE_SCOPE_PULSE_DATA scope_data_magnetron_current;
+extern TYPE_SCOPE_PULSE_DATA scope_data_target_current;
+
+extern TYPE_SCOPE_DATA scope_data_a;
+extern TYPE_SCOPE_DATA scope_data_b;
 
 
 

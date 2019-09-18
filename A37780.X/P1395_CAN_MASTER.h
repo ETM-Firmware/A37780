@@ -51,6 +51,9 @@ void ETMCanMasterClearHighSpeedLogging(void);
 
 
 
+void ETMCanMasterSelectScopeDataSourceGeneric(unsigned int scope_a_data_source, unsigned int scope_b_data_source);
+void ETMCanMasterSelectScopeDataSourceHVVmon(unsigned int hv_vmon_source);
+
 
 //void ETMCanMasterSendDefaultRequestRTSP();
 //void ETMCanMasterSendDefaultConfirmRTSP();

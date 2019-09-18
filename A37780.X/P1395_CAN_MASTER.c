@@ -6,6 +6,22 @@
 
 
 
+/*
+#define ETM_CAN_DATA_LOG_REGISTER_SCOPE_A                        0x180
+#define ETM_CAN_DATA_LOG_REGISTER_SCOPE_B                        0x190
+#define ETM_CAN_DATA_LOG_REGISTER_PULSE_SCOPE_DATA               0x1A0
+#define ETM_CAN_DATA_LOG_REGISTER_HV_VMON_DATA                   0x1B0
+*/
+
+TYPE_SCOPE_PULSE_DATA scope_data_magnetron_current;
+TYPE_SCOPE_PULSE_DATA scope_data_target_current;
+
+
+
+
+
+
+static void ScopeDataLog(unsigned int data_log_id, unsigned int board_id, unsigned int data_3, unsigned int data_2, unsigned int data_1, unsigned int data_0);
 
 
 
@@ -25,7 +41,8 @@ ETMCanBoardDebuggingData debug_data_ecb;
 
 
 
-TYPE_SCOPE_DATA scope_data;
+TYPE_SCOPE_DATA scope_data_a;
+TYPE_SCOPE_DATA scope_data_b;
 TYPE_PULSE_LOG  pulse_log;
 
 
@@ -44,11 +61,11 @@ static void LocalLogDebugDataFromSlave(unsigned int data_log_id, unsigned int bo
 static void LocalClearDebug(void);
 static void LocalUpdateSlaveNotReady(void);
 
+unsigned int etm_can_active_debugging_board_id;
 
 
 // ----------  local variables that are set through function calls -------------//
 static ETMCanSyncMessage sync_message;
-static unsigned int etm_can_active_debugging_board_id;
 static unsigned int etm_can_magnetron_heater_scaled_heater_current;
 static unsigned int etm_can_master_boards_to_ignore;
 
@@ -63,6 +80,10 @@ static unsigned long etm_can_master_sync_message_timer_holding_var;
 static unsigned long etm_can_master_check_slave_timeout_timer_holding_var;
 static unsigned int  persistent_data_reset_count __attribute__ ((persistent));
 static unsigned int  persistent_data_can_timeout_count __attribute__ ((persistent));
+static unsigned int  scope_a_settings = 0xFFFF;
+static unsigned int  scope_b_settings = 0xFFFF;
+static unsigned int  scope_hv_vmon_settings;
+
 
 
 // --------- Local Buffers ---------------- // 
@@ -127,6 +148,9 @@ void ETMCanMasterInitialize(unsigned int requested_can_port, unsigned long fcy, 
 
   ETMPinTrisOutput(etm_can_master_can_led);
   
+  scope_data_a.write_location = 0;
+  scope_data_b.write_location = 0;
+    
   if (requested_can_port != CAN_PORT_2) {
     // Use CAN1
     
@@ -211,8 +235,6 @@ void ETMCanMasterInitialize(unsigned int requested_can_port, unsigned long fcy, 
 
 }
 
-#define SYNC_MESSAGE_MAX_TRANSMISSION_PERIOD               50  // 50mS.  If a sync message has not been sent by user code (following a trigger or change in sync control bits) one will be sent by the can module
-#define UPDATE_SLAVE_TIMEOUT_CHECK_PERIOD_MILLISECONDS     100 // 100ms.  Checks for slave timeouts this often
 
 void ETMCanMasterDoCan(void) {
   
@@ -310,7 +332,7 @@ static void LocalTransmitToSlave(unsigned int cmd_id, unsigned int word_3, unsig
 
 
 
-#define ETM_CAN_MASTER_TIMED_TRANSMISSION_PERIOD_MILLI_SECONDS  100 // Time between updates to a slave board.  There are 10 update messages so max 500mS to update all the boards
+
 
 static void LocalTimedTransmit(void) {
   static unsigned int transmit_message_select_counter;
@@ -319,7 +341,7 @@ static void LocalTimedTransmit(void) {
   // Once every 100ms, send out message to update board settings
   if (ETMTickRunOnceEveryNMilliseconds(ETM_CAN_MASTER_TIMED_TRANSMISSION_PERIOD_MILLI_SECONDS, &etm_can_master_timed_transmission_period_holding_var)) {
     transmit_message_select_counter++;
-    if (transmit_message_select_counter >= 7) {
+    if (transmit_message_select_counter >= 8) {
       transmit_message_select_counter = 0;
     }
 
@@ -379,6 +401,15 @@ static void LocalTimedTransmit(void) {
 			     0,
 			     0,
 			     ecb_data.dose_level_all.afc_manual_target_position);
+	break;
+
+
+      case 0x7:
+	LocalTransmitToSlave(ETM_CAN_CMD_ID_SCOPE_SETTINGS,
+			     scope_a_settings,
+			     scope_b_settings,
+			     scope_hv_vmon_settings,
+			     0);
 	break;
 	
       default:
@@ -519,7 +550,7 @@ void SetupPulseLog(void) {
       pulse_log.data_b[index].gun_trigger_start_b = sync_message.pulse_count;
     } else {
       // Initialize the array
-      if (index == 2) {
+      if (index == 3) {
       // It is time to send the other log
       pulse_log.data_a_ready_to_send = 1;
       }
@@ -567,7 +598,7 @@ void SetupPulseLog(void) {
       pulse_log.data_a[index].gun_trigger_start_b = sync_message.pulse_count;
     } else {
       // Initialize the array
-      if (index == 2) {
+      if (index == 3) {
 	// It is time to send the other log
 	pulse_log.data_b_ready_to_send = 1;
       }
@@ -1039,12 +1070,83 @@ static void LocalUpdateSlaveEventLog(ETMCanStatusRegister* previous_status, ETMC
 
 
 void PulseDataLog(log_id, board_id, word3, word2, word1, word0) {
+  unsigned int index;
+  index = log_id & 0x0007;
+  
+  if (board_id == ETM_CAN_ADDR_HV_LAMBDA_BOARD) {
+    if (log_id & 0x0008) {
+      pulse_log.data_b[index].hvps_eoc_a = word3;
+      pulse_log.data_b[index].hvps_spare_a = word2;
+      pulse_log.data_b[index].hvps_eoc_b = word1;
+      pulse_log.data_b[index].hvps_spare_b = word0;
+    } else {
+      pulse_log.data_a[index].hvps_eoc_a = word3;
+      pulse_log.data_a[index].hvps_spare_a = word2;
+      pulse_log.data_a[index].hvps_eoc_b = word1;
+      pulse_log.data_a[index].hvps_spare_b = word0;
+    }
+  }
 
+  if (board_id == ETM_CAN_ADDR_AFC_CONTROL_BOARD) {
+    if (log_id & 0x0008) {
+      pulse_log.data_b[index].afc_current_position_a = word3;
+      pulse_log.data_b[index].afc_reverse_reading_a = word2;
+      pulse_log.data_b[index].afc_current_position_b = word1;
+      pulse_log.data_b[index].afc_reverse_reading_b = word0;
+    } else {
+      pulse_log.data_a[index].afc_current_position_a = word3;
+      pulse_log.data_a[index].afc_reverse_reading_a = word2;
+      pulse_log.data_a[index].afc_current_position_b = word1;
+      pulse_log.data_a[index].afc_reverse_reading_b = word0;
+    }
+  }
+
+  if (board_id == ETM_CAN_ADDR_MAGNETRON_CURRENT_BOARD) {
+    if (log_id & 0x0008) {
+      pulse_log.data_b[index].magnetron_current_sample_a = word3;
+      pulse_log.data_b[index].magnetron_current_integral_a = word2;
+      pulse_log.data_b[index].magnetron_current_sample_b = word1;
+      pulse_log.data_b[index].magnetron_current_integral_b = word0;
+    } else {
+      pulse_log.data_a[index].magnetron_current_sample_a = word3;
+      pulse_log.data_a[index].magnetron_current_integral_a = word2;
+      pulse_log.data_a[index].magnetron_current_sample_b = word1;
+      pulse_log.data_a[index].magnetron_current_integral_b = word0;
+    }
+  }
+
+  if (board_id == ETM_CAN_ADDR_TARGET_CURRENT_BOARD) {
+    if (log_id & 0x0008) {
+      pulse_log.data_b[index].target_current_sample_a = word3;
+      pulse_log.data_b[index].target_current_integral_a = word2;
+      pulse_log.data_b[index].target_current_sample_b = word1;
+      pulse_log.data_b[index].target_current_integral_b = word0;
+    } else {
+      pulse_log.data_a[index].target_current_sample_a = word3;
+      pulse_log.data_a[index].target_current_integral_a = word2;
+      pulse_log.data_a[index].target_current_sample_b = word1;
+      pulse_log.data_a[index].target_current_integral_b = word0;
+    }
+  }
+
+  if (board_id == ETM_CAN_ADDR_GUN_DRIVER_BOARD) {
+    if (log_id & 0x0008) {
+      pulse_log.data_b[index].gun_driver_data_0_a = word3;
+      pulse_log.data_b[index].gun_driver_data_1_a = word2;
+      pulse_log.data_b[index].gun_driver_data_0_b = word1;
+      pulse_log.data_b[index].gun_driver_data_1_b = word0;
+    } else {
+      pulse_log.data_a[index].gun_driver_data_0_a = word3;
+      pulse_log.data_a[index].gun_driver_data_1_a = word2;
+      pulse_log.data_a[index].gun_driver_data_0_b = word1;
+      pulse_log.data_a[index].gun_driver_data_1_b = word0;
+    }
+  }
 }
 
 
 
-#define ETM_CAN_MASTER_SLAVE_TIMEOUT_MILLI_SECONDS        300
+
 #define LOG_ID_SLAVE_CONNECTION_TIMEOUT_BASE_ID           0x0000
 #define LOG_ID_SLAVE_CONNECTION_ESTABLISHED_BASE_ID       0x0080
 
@@ -1109,18 +1211,22 @@ static void LocalReceiveLogData(void) {
     board_id = data_log_index & 0x000F;
     log_id = data_log_index & 0x03F0;
     log_id >>= 4;
-    
-    if (log_id <= 0x07) {
+
+
+    if (log_id <= 0x0F) {
+      // Pulse by Pulse logging
+      PulseDataLog(log_id, board_id, next_message.word3, next_message.word2, next_message.word1, next_message.word0);
+      Nop();
+      Nop();
+      Nop();
+
+      
+    } else if (log_id <= 0x17) {
       // This is board data that is always up to date on the ECB.  In needs to be stored in RAM
       LocalLogDataFromSlave(log_id, board_id, next_message.word3, next_message.word2, next_message.word1, next_message.word0);
       
-    } else if (log_id <= 0x0F) {
-      // Pulse by Pulse logging
-      //PulseDataLog(next_message);  DPARKER ADD THIS BACK IN
-      
     } else if (log_id <= 0x1B) {
-      // Scope Data
-      //ScopeDataLog(next_message); DPARKER ADD THIS BACK IN
+      ScopeDataLog(log_id<<4, board_id, next_message.word3, next_message.word2, next_message.word1, next_message.word0);
       
     } else if (log_id <= 0x3F) {
       // Board specific Debugging/Calibration Data, only store if this board is selected
@@ -1134,6 +1240,8 @@ static void LocalReceiveLogData(void) {
 
 static void LocalLogDataFromSlave(unsigned int data_log_id, unsigned int board_id, unsigned int data_3, unsigned int data_2, unsigned int data_1, unsigned int data_0) {
   unsigned int *register_to_write;
+
+  data_log_id -= 0x10;
   
   if (board_id > NUMBER_OF_DATA_MIRRORS) {
     // Not a valid RAM address, this would do bad things to the RAM
@@ -1168,6 +1276,166 @@ static void LocalLogDataFromSlave(unsigned int data_log_id, unsigned int board_i
   *register_to_write = data_3;
 }
 
+
+
+
+
+
+static void ScopeDataLog(unsigned int data_log_id, unsigned int board_id, unsigned int data_3, unsigned int data_2, unsigned int data_1, unsigned int data_0) {
+  unsigned int location;
+  unsigned int n;
+  if (data_log_id == ETM_CAN_DATA_LOG_REGISTER_PULSE_SCOPE_DATA) {
+    if (board_id == ETM_CAN_ADDR_MAGNETRON_CURRENT_BOARD) {
+      // We are receiving magnetron current data
+      location = (data_3 >> 12) & 0x000F;
+      if (location > 9) {
+	// there is no place to put the data
+	return;
+      }
+
+      if (scope_data_magnetron_current.data_status == SCOPE_DATA_FULL) {
+	// Still waitiing to send the data
+	return;
+      }
+
+      if (location == 0) {
+	// FORMAT THE DATA
+	for (n = 0; n < 10; n++) {
+	  scope_data_magnetron_current.pulse_data[n*4 + 0] = 0xFFEF;
+	  scope_data_magnetron_current.pulse_data[n*4 + 1] = 0xEFFE;
+	  scope_data_magnetron_current.pulse_data[n*4 + 2] = 0xFEFF;
+	  scope_data_magnetron_current.pulse_data[n*4 + 3] = 0x0FEF;
+	}
+	scope_data_magnetron_current.data_status = SCOPE_DATA_FILLING;
+      }
+      
+      if (scope_data_magnetron_current.data_status == SCOPE_DATA_FILLING) {
+	scope_data_magnetron_current.pulse_data[location*4 + 0] = data_0;
+	scope_data_magnetron_current.pulse_data[location*4 + 1] = data_1;
+	scope_data_magnetron_current.pulse_data[location*4 + 2] = data_2;
+	scope_data_magnetron_current.pulse_data[location*4 + 3] = data_3;// & 0x0FFF);
+      }
+
+      if (location == 9) {
+	scope_data_magnetron_current.data_status = SCOPE_DATA_FULL;
+      }  
+    } else {
+      // Assume target current Data
+      location = (data_3 >> 12) & 0x000F;
+      if (location > 9) {
+	// there is no place to put the data
+	return;
+      }
+
+      if (scope_data_target_current.data_status == SCOPE_DATA_FULL) {
+	// Still waitiing to send the data
+	return;
+      }
+
+      if (location == 0) {
+	// FORMAT THE DATA
+
+	for (n = 0; n < 10; n++) {
+	  scope_data_target_current.pulse_data[n*4 + 0] = 0xFFEF;
+	  scope_data_target_current.pulse_data[n*4 + 1] = 0xEFFE;
+	  scope_data_target_current.pulse_data[n*4 + 2] = 0xFEFF;
+	  scope_data_target_current.pulse_data[n*4 + 3] = 0x0FEF;
+	}
+	scope_data_target_current.data_status = SCOPE_DATA_FILLING;
+      }
+      
+      if (scope_data_target_current.data_status == SCOPE_DATA_FILLING) {
+	scope_data_target_current.pulse_data[location*4 + 0] = data_0;
+	scope_data_target_current.pulse_data[location*4 + 1] = data_1;
+	scope_data_target_current.pulse_data[location*4 + 2] = data_2;
+	scope_data_target_current.pulse_data[location*4 + 3] = data_3;// & 0x0FFF);
+      }
+
+      if (location == 9) {
+	scope_data_target_current.data_status = SCOPE_DATA_FULL;
+      }  
+
+    }
+  } else if ((data_log_id == ETM_CAN_DATA_LOG_REGISTER_SCOPE_A) && !scope_data_a.hv_vmon_enabled) {
+    scope_data_a.data[scope_data_a.write_location++] = data_0;
+    scope_data_a.data[scope_data_a.write_location++] = data_1;
+    scope_data_a.data[scope_data_a.write_location++] = data_2;
+    scope_data_a.data[scope_data_a.write_location++] = data_3;
+    scope_data_a.write_location &= (SCOPE_DATA_SIZE - 1);
+
+    if (scope_data_a.write_location == (SCOPE_DATA_SIZE >> 1)) {
+      // We just finished filling the first half of the data, send out that data
+      scope_data_a.data_x_ready_to_send = 1;
+    }
+    
+    if (scope_data_a.write_location == 0) {
+      // We just finished filling the second half of the register, send out that data
+      scope_data_a.data_y_ready_to_send = 1;
+    }
+    
+    
+  } else if ((data_log_id == ETM_CAN_DATA_LOG_REGISTER_SCOPE_B) && !scope_data_a.hv_vmon_enabled) {
+    scope_data_b.data[scope_data_b.write_location++] = data_0;
+    scope_data_b.data[scope_data_b.write_location++] = data_1;
+    scope_data_b.data[scope_data_b.write_location++] = data_2;
+    scope_data_b.data[scope_data_b.write_location++] = data_3;
+    scope_data_b.write_location &= (SCOPE_DATA_SIZE - 1);
+    
+    if (scope_data_b.write_location == (SCOPE_DATA_SIZE >> 1)) {
+      // We just finished filling the first half of the data, send out that data
+      scope_data_b.data_x_ready_to_send = 1;
+    }
+    
+    if (scope_data_b.write_location == 0) {
+      // We just finished filling the second half of the register, send out that data
+      scope_data_b.data_y_ready_to_send = 1;
+    }
+  } else if ((data_log_id == ETM_CAN_DATA_LOG_REGISTER_HV_VMON_DATA) && scope_data_a.hv_vmon_enabled) {
+    // HV VMON data is stored in scope_data_a and scope_data_b
+    if (scope_data_a.hv_vmon_buffer_active) {
+      // store the data in scope_data_a
+      if (scope_data_a.hv_vmon_ready_to_send == 0) {
+	// Otherwise the buffer is full already
+	scope_data_a.data[scope_data_a.write_location++] = data_0;
+	scope_data_a.data[scope_data_a.write_location++] = data_1;
+	scope_data_a.data[scope_data_a.write_location++] = data_2;
+	scope_data_a.data[scope_data_a.write_location++] = data_3;
+	scope_data_a.write_location &= (SCOPE_DATA_SIZE - 1);
+
+	if (scope_data_a.write_location == 0) {
+	  // scope_data_a is full
+	  _LATG0 = 1;
+	  if (scope_data_b.hv_vmon_ready_to_send == 1) {
+	    scope_data_b.priority = 1;
+	  }
+	  scope_data_a.priority = 0;
+	  scope_data_a.hv_vmon_ready_to_send = 1;
+	  scope_data_a.hv_vmon_buffer_active = 0;
+	}
+      }
+    } else {
+      // store the data in scope_data_b
+      if (scope_data_b.hv_vmon_ready_to_send == 0) {
+	scope_data_b.data[scope_data_b.write_location++] = data_0;
+	scope_data_b.data[scope_data_b.write_location++] = data_1;
+	scope_data_b.data[scope_data_b.write_location++] = data_2;
+	scope_data_b.data[scope_data_b.write_location++] = data_3;
+	scope_data_b.write_location &= (SCOPE_DATA_SIZE - 1);
+	
+	if (scope_data_b.write_location == 0) {
+	  // scope_data_b is full
+	  _LATG0 = 1;
+	  if (scope_data_a.hv_vmon_ready_to_send == 1) {
+	    scope_data_a.priority = 1;
+	  }
+	  scope_data_b.priority = 0;
+	  scope_data_b.hv_vmon_ready_to_send = 1;
+	  scope_data_a.hv_vmon_buffer_active = 1;
+	}
+      }
+    }
+  }
+}
 
 
 static void LocalLogDebugDataFromSlave(unsigned int data_log_id, unsigned int board_id, unsigned int data_3, unsigned int data_2, unsigned int data_1, unsigned int data_0) {
@@ -1219,13 +1487,6 @@ static void LocalLogDebugDataFromSlave(unsigned int data_log_id, unsigned int bo
   
 }
 
-
-
-static void ScopeDataLog(unsigned int data_log_id, unsigned int board_id, unsigned int data_3, unsigned int data_2, unsigned int data_1, unsigned int data_0) {
-  
-
-}
-  
 
 void ETMCanMasterClearECBDebug(void) {
   LocalClearDebug();
@@ -1356,13 +1617,15 @@ void DoCanInterrupt(void) {
     *CXINTF_ptr &= ~ERROR_FLAG_BIT; // Clear the ERR Flag
   } else {
     // FLASH THE CAN LED
+    /*
+      DPARKER FIX
     if (ETMReadPinLatch(etm_can_master_can_led)) {
       ETMClearPin(etm_can_master_can_led);
     } else {
       ETMSetPin(etm_can_master_can_led);
     }
+    */
   }
-
 }
 
 
@@ -1509,6 +1772,42 @@ void ETMCanMasterSetScaledMagnetronHeaterCurrent(unsigned int scaled_current_set
   etm_can_magnetron_heater_scaled_heater_current = scaled_current_setting;
 }
 
-void ETMCanMasterSetActiveDebuggingBoardID(unsigned int save_debug_data_from_this_board_id) {
-  etm_can_active_debugging_board_id = save_debug_data_from_this_board_id;
+
+void ETMCanMasterSelectScopeDataSourceGeneric(unsigned int scope_a_data_source, unsigned int scope_b_data_source) {
+  // DPARKER, use this command to select the scope data sources
+
+  scope_a_settings = scope_a_data_source;
+  scope_b_settings = scope_b_data_source;
+  scope_hv_vmon_settings = 0xFFFF;
+  
+  scope_data_a.data_x_ready_to_send = 0;
+  scope_data_a.data_y_ready_to_send = 0;
+  scope_data_a.hv_vmon_enabled = 0;
+  scope_data_a.write_location = 0;
+
+  scope_data_b.data_x_ready_to_send = 0;
+  scope_data_b.data_y_ready_to_send = 0;
+  scope_data_b.hv_vmon_enabled = 0;
+  scope_data_b.write_location = 0;
+  
+}
+
+void ETMCanMasterSelectScopeDataSourceHVVmon(unsigned int hv_vmon_source) {
+  scope_a_settings = 0xFFFF;
+  scope_b_settings = 0xFFFF;
+  scope_hv_vmon_settings = hv_vmon_source;
+
+  scope_data_a.data_x_ready_to_send = 0;
+  scope_data_a.data_y_ready_to_send = 0;
+  scope_data_a.hv_vmon_enabled = 1;
+  scope_data_a.hv_vmon_buffer_active = 1;
+  scope_data_a.hv_vmon_ready_to_send = 0;
+  scope_data_a.write_location = 0;
+
+  scope_data_b.data_x_ready_to_send = 0;
+  scope_data_b.data_y_ready_to_send = 0;
+  scope_data_b.hv_vmon_enabled = 1;
+  scope_data_b.hv_vmon_buffer_active = 1;
+  scope_data_b.hv_vmon_ready_to_send = 0;
+  scope_data_b.write_location = 0;
 }

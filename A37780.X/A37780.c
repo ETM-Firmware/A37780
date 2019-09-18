@@ -6,6 +6,17 @@
 #include "ETM_LINAC_MODBUS.h"
 
 
+
+
+
+
+unsigned int ETMEEPromPrivateReadSinglePage(unsigned int page_number, unsigned int *page_data);
+// From ETM_EEPROM - this module only needs access to this fuction
+
+
+
+
+
 unsigned int  persistent_data_reset_check_a __attribute__ ((persistent));
 unsigned int  persistent_data_reset_check_b __attribute__ ((persistent));
 
@@ -946,15 +957,6 @@ void UpdateDebugData(void) {
   debug_data_ecb.debug_reg[0xE] = 12;
   debug_data_ecb.debug_reg[0xF] = 12; 
   */
-
-  debug_data_ecb.debug_reg[0x0] = 0;
-  debug_data_ecb.debug_reg[0x1] = 1;
-  debug_data_ecb.debug_reg[0x2] = 2;
-  debug_data_ecb.debug_reg[0x3] = 3;
-  debug_data_ecb.debug_reg[0x4] = global_data_A37780.eeprom_write_status;
-
-  debug_data_ecb.debug_reg[0x5] = global_data_A37780.adc_reading_at_turn_on;
-  debug_data_ecb.debug_reg[0x6] = sync_time_10ms_units;
   
   /*
   debug_data_ecb.debug_reg[0x0] = ecb_data.dose_level_0.hvps_set_point;
@@ -1010,12 +1012,14 @@ void DoA37780(void) {
     
     // DPARKER add code detect a PFN FAN FAULT
 
+    /*
+    
     if (PIN_OUT_LED_GRN_OPERATION) {
       PIN_OUT_LED_GRN_OPERATION = 0;
     } else {
       PIN_OUT_LED_GRN_OPERATION = 1;
     }
-    
+    */
     // Update the thyratron warmup counters
     if (!_FAULT_PFN_FAN_FAULT) {
       if (global_data_A37780.thyratron_warmup_remaining > 0) {
@@ -2056,6 +2060,9 @@ void LoadDefaultSystemCalibrationToEEProm(void) {
 #define REGISTER_SYSTEM_LOAD_CUSTOMER_SETTINGS_SAVE_AND_REBOOT 0x110A
 #define REGISTER_REMOTE_IP_ADDRESS 0x110B
 #define REGISTER_IP_ADDRESS 0x110C
+#define REGISTER_SCOPE_DATA_SOURCE_GENERIC 0x1120
+#define REGISTER_SCOPE_DATA_SOURCE_HV_VMON 0x1121
+      
 
 //#define REGISTER_DEBUG_TOGGLE_RESET_DEBUG 0x1200
 #define REGISTER_DEBUG_RESET_MCU 0x1201
@@ -2799,6 +2806,17 @@ void ExecuteEthernetCommand(void) {
 	ETMCanMasterSendSlaveRAMDebugLocations(next_message.data_3, next_message.data_2, next_message.data_1, next_message.data_0);}
       break;
 
+    case REGISTER_SCOPE_DATA_SOURCE_GENERIC:
+      ETMCanMasterSelectScopeDataSourceGeneric(next_message.data_3, next_message.data_2);
+      break;
+
+    case REGISTER_SCOPE_DATA_SOURCE_HV_VMON:
+      ETMCanMasterSelectScopeDataSourceHVVmon(next_message.data_3);
+      break;
+
+
+
+      
     case REGISTER_DEBUG_SET_EEPROM_DEBUG:
       if (next_message.data_3 == ETM_CAN_ADDR_ETHERNET_BOARD) {
 	// Debug Ram Loactions on the ECB
