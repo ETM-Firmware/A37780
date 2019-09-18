@@ -4,121 +4,6 @@
 // ---------------------- STATUS REGISTER DEFFENITIONS   ------------------------- //
 #define CAN_REV 3
 
-typedef struct {
-  unsigned control_not_ready:1;
-  unsigned control_not_configured:1;
-  unsigned control_self_check_error:1;
-  unsigned control_3_unused:1;
-  unsigned control_4_unused:1;
-  unsigned control_5_unused:1;
-  unsigned control_6_unused:1;
-  unsigned control_7_unused:1;
-  
-  unsigned notice_0:1;
-  unsigned notice_1:1;
-  unsigned notice_2:1;
-  unsigned notice_3:1;
-  unsigned notice_4:1;
-  unsigned notice_5:1;
-  unsigned notice_6:1;
-  unsigned notice_7:1;
-} ETMCanStatusRegisterControlAndNoticeBits;
-
-typedef struct {
-  unsigned fault_0:1;
-  unsigned fault_1:1;
-  unsigned fault_2:1;
-  unsigned fault_3:1;
-  unsigned fault_4:1;
-  unsigned fault_5:1;
-  unsigned fault_6:1;
-  unsigned fault_7:1;
-  unsigned fault_8:1;
-  unsigned fault_9:1;
-  unsigned fault_A:1;
-  unsigned fault_B:1;
-  unsigned fault_C:1;
-  unsigned fault_D:1;
-  unsigned fault_E:1;
-  unsigned fault_F:1;
-} ETMCanStatusRegisterFaultBits;
-
-typedef struct {
-  unsigned warning_0:1;
-  unsigned warning_1:1;
-  unsigned warning_2:1;
-  unsigned warning_3:1;
-  unsigned warning_4:1;
-  unsigned warning_5:1;
-  unsigned warning_6:1;
-  unsigned warning_7:1;
-  unsigned warning_8:1;
-  unsigned warning_9:1;
-  unsigned warning_A:1;
-  unsigned warning_B:1;
-  unsigned warning_C:1;
-  unsigned warning_D:1;
-  unsigned warning_E:1;
-  unsigned warning_F:1;
-} ETMCanStatusRegisterWarningBits;
-
-typedef struct {
-  unsigned not_logged_0:1;
-  unsigned not_logged_1:1;
-  unsigned not_logged_2:1;
-  unsigned not_logged_3:1;
-  unsigned not_logged_4:1;
-  unsigned not_logged_5:1;
-  unsigned not_logged_6:1;
-  unsigned not_logged_7:1;
-  unsigned not_logged_8:1;
-  unsigned not_logged_9:1;
-  unsigned not_logged_A:1;
-  unsigned not_logged_B:1;
-  unsigned not_logged_C:1;
-  unsigned not_logged_D:1;
-  unsigned not_logged_E:1;
-  unsigned not_logged_F:1;
-} ETMCanStatusRegisterNotLoggedBits;
-
-
-
-typedef struct {
-  ETMCanStatusRegisterControlAndNoticeBits   control_notice_bits;  // 16 bits
-  ETMCanStatusRegisterFaultBits              fault_bits;    // 16 bits
-  ETMCanStatusRegisterWarningBits            warning_bits;  // 16 bits
-  ETMCanStatusRegisterNotLoggedBits          not_logged_bits;   // 16 bits
-} ETMCanStatusRegister;
-
-
-
-typedef struct {
-  ETMCanStatusRegister    status;             // This is 4 words of status data for the slave
-
-  // Can data log - 0x00Z -> 0x05Z
-  unsigned int            log_data[24];       // This is 24 words (6 registers) of logging data passed to the GUI
-                                              // This data should be managed by the user application program
-                                              // use #define to map the relevant variables to these locations
-
-  // Can data log - 0x06Z
-  unsigned int            device_id_high_word;
-  unsigned int            device_id_low_word;
-  unsigned int            device_id_dash_number;
-  unsigned int            device_rev_2x_ASCII;
-
-  // Can data log - 0x07Z
-  unsigned int            device_serial_number;
-  unsigned int            device_firmware_rev_agile;
-  unsigned int            device_firmware_branch;
-  unsigned int            device_firmware_branch_rev;
-
-  unsigned int            connection_timeout;                // On the ECB this is used to flag if the board connection has timed out or not.
-  unsigned long           time_last_status_message_recieved; // On the ECB this is used to track the last time a status message was recieved from this board.  
-  unsigned int            spare;
-  //unsigned int            cmd_data[12];     // On the ECB, this stores data to be sent to the slave boards, on slave boards, this stores the data recieved from ECB
-                                            // This should be read only to the user application program
-} ETMCanBoardData;
-
 
 
 
@@ -145,15 +30,6 @@ typedef struct {
   unsigned st_spare_1:1;
   unsigned st_spare_0:1;
 } ETMCanSelfTestRegister;
-
-
-// --------------- Board Logging Data ----------------------- //
-/*
-  24 Words of board data
-  8  Words of board configuration
-  This is mirrored for all slave boards on the ECB
-*/
-
 
 
 
@@ -227,9 +103,11 @@ typedef struct {
   // Can data log - 0x29Z
   unsigned int eeprom_crc_error_count;
   unsigned int cmd_data_register_read_invalid_index;
-  unsigned int debugging_TBD_17;    // Debugging TBD
-  unsigned int debugging_TBD_16;    // Debugging TBD
+  unsigned int debugging_TBD_17;    // 1 here indicates that the EEProm had error at startup
+  unsigned int debugging_TBD_16;    // count of EEProm Registers that had to be loaded with default values
+  // DPARKER CHANGE THE NAMES ON THESE SO THAT THEY REFLECT REALITY
 
+  
   // Can data log - 0x2AZ
   unsigned int reset_count;
   unsigned int RCON_value;
@@ -243,7 +121,7 @@ typedef struct {
   ETMCanSelfTestRegister self_test_results;
   
   // Can data log - 0x2CZ
-  unsigned int debugging_TBD_15;     // Debugging TBD
+  unsigned int faults_being_ignored;
   unsigned int debugging_TBD_14;     // Debugging TBD
   unsigned int debugging_TBD_13;     // Debugging TBD
   unsigned int debugging_TBD_12;     // Debugging TBD
@@ -345,9 +223,22 @@ typedef struct {
   unsigned char pulse_count;
   unsigned char next_energy_level;
   unsigned int  prf_from_ecb; 
-  unsigned char scope_A_select;
-  unsigned char scope_B_select;
+  unsigned char unused_A;
+  unsigned char unused_B;
 } ETMCanSyncMessage;
+
+
+// DOSE LEVELS FOR SYNC MESSAGE
+#define DOSE_SELECT_REPEATE_DOSE_LEVEL_0                         0x11
+#define DOSE_SELECT_REPEATE_DOSE_LEVEL_1                         0x12
+#define DOSE_SELECT_REPEATE_DOSE_LEVEL_2                         0x13
+#define DOSE_SELECT_REPEATE_DOSE_LEVEL_3                         0x14
+
+#define DOSE_SELECT_INTERLEAVE_0_1_DOSE_LEVEL_0                  0x21
+#define DOSE_SELECT_INTERLEAVE_0_1_DOSE_LEVEL_1                  0x22
+#define DOSE_SELECT_INTERLEAVE_2_3_DOSE_LEVEL_2                  0x23
+#define DOSE_SELECT_INTERLEAVE_2_3_DOSE_LEVEL_3                  0x24
+
 
 
 typedef struct {
@@ -457,7 +348,7 @@ unsigned int ETMCanBufferNotEmpty(ETMCanMessageBuffer* buffer_ptr);
 //                                               0bXXX0000NNNNNNNX0
 #define ETM_CAN_MASTER_MSG_FILTER_RF0            0b0000100000000000  // This is used to recieve RTSP response - Action TBD
 //                                               0bXXX0001NNAAAAAX0
-#define ETM_CAN_MASTER_MSG_FILTER_RF1            0b0000001000000000  // This will accept STATUS message from slaves.  Needs to be or'ed with ECB ADDRESS << 2
+#define ETM_CAN_MASTER_MSG_FILTER_RF1            0b0000001000000000
 
 // RX1  Mask and Filters
 //                                               0bXXX1PPPPPPAAAAX0
@@ -508,7 +399,7 @@ unsigned int ETMCanBufferNotEmpty(ETMCanMessageBuffer* buffer_ptr);
 
 
 
-#define CXCFG2_VALUE                             0b0000001110010001      // This will created a bit timing of 10x TQ
+//#define CXCFG2_VALUE                             0b0000001110010001      // This will created a bit timing of 10x TQ
 /*
   Can Bit Timing
   Syncchronization segment     - 1xTq
@@ -520,7 +411,7 @@ unsigned int ETMCanBufferNotEmpty(ETMCanMessageBuffer* buffer_ptr);
 
 */
 
-
+#define CXCFG2_VALUE                             0b0000001110011010      // This will created a bit timing of 12x TQ
 /*
   Can Bit Timing
   Syncchronization segment     - 1xTq
@@ -531,12 +422,12 @@ unsigned int ETMCanBufferNotEmpty(ETMCanMessageBuffer* buffer_ptr);
   Maximum Jump Width(CXCFG1)   - 1xTq
 
 */
-//#define CXCFG2_VALUE                             0b0000001110011010      // This will created a bit timing of 12x TQ
-/*
-  DPARKER -  In order to get the CAN network to work it was necessary to increase the time of each bit.
-  With testing we may be able to get the values back down to 10xTQ which is 1Mbit
-*/
 
+/*
+  In order to get the CAN network to work it was necessary to increase the time of each bit.
+  With testing we may be able to get the values back down to 10xTQ which is 1Mbit
+  In order to work with 10xTQ timing, the faster CAN interface chips are required
+*/
 
 
 #define CXTXXCON_VALUE_HIGH_PRIORITY             0b0000000000000011
@@ -547,135 +438,48 @@ unsigned int ETMCanBufferNotEmpty(ETMCanMessageBuffer* buffer_ptr);
 #define CXTXXDLC_VALUE                           0b0000000011000000
 
 
-//------------------------------- Specific Board and Command Defines -------------------------- // 
+// ------------ CAN MODULE TIMING SPECIFICATIONS ------------ //
 
-#define ETM_CAN_ADDR_HV_LAMBDA_BOARD                                    0x0000
-#define ETM_CAN_ADDR_ION_PUMP_BOARD                                     0x0001
-#define ETM_CAN_ADDR_AFC_CONTROL_BOARD                                  0x0002
-#define ETM_CAN_ADDR_COOLING_INTERFACE_BOARD                            0x0003
-#define ETM_CAN_ADDR_HEATER_MAGNET_BOARD                                0x0004
-#define ETM_CAN_ADDR_GUN_DRIVER_BOARD                                   0x0005
-#define ETM_CAN_ADDR_MAGNETRON_CURRENT_BOARD                            0x0006
-#define ETM_CAN_ADDR_TARGET_CURRENT_BOARD                               0x0007
-#define ETM_CAN_ADDR_DOSE_MONITOR_BOARD                                 0x0008
-#define ETM_CAN_ADDR_PFN_BOARD                                          0x0009
-#define ETM_CAN_ADDR_ETHERNET_BOARD                                     0x000F
+// SLAVE PARAMETERS
+#define SLAVE_TRANSMIT_MILLISECONDS            100  // Period to send Status Message and one Debug data message
+#define SLAVE_TIMEOUT_MILLISECONDS             250  // Slave communication timemout, receiving sync message from ECB
+
+// MASTER PARAMETERS
+#define SYNC_MESSAGE_MAX_TRANSMISSION_PERIOD                    50  // 50mS.  If a sync message has not been sent by user code (following a trigger or change in sync control bits) one will be sent by the can master module
+#define UPDATE_SLAVE_TIMEOUT_CHECK_PERIOD_MILLISECONDS          100 // 100ms.  Checks for slave timeouts this often
+#define ETM_CAN_MASTER_TIMED_TRANSMISSION_PERIOD_MILLI_SECONDS  100 // Time between updates to a slave board.  There are 7 update messages so max 700mS to update all the parameters
+#define ETM_CAN_MASTER_SLAVE_TIMEOUT_MILLI_SECONDS              300 // Slave will timeout after this time without a status message
+
+
+
+
+
+
+//------------------------------- Specific Board and Command Defines -------------------------- // 
 
 
 // Board Specific Register Locations
 
-#define ETM_CAN_CMD_ID_RESET_MCU                        0x00
-#define ETM_CAN_CMD_ID_LOAD_DEFAULT_CALIBRATION         0x01
-#define ETM_CAN_CMD_ID_LOAD_REV_AND_SERIAL_NUMBER       0x02
-#define ETM_CAN_CMD_ID_SET_CAL_PAIR                     0x03
-#define ETM_CAN_CMD_ID_SET_RAM_DEBUG                    0x04
-#define ETM_CAN_CMD_ID_SET_EEPROM_DEBUG                 0x05
-#define ETM_CAN_CMD_ID_SET_IGNORE_FAULTS                0x06
-#define ETM_CAN_CMD_ID_CLEAR_DEBUG                      0x07
-#define ETM_CAN_CMD_ID_SCOPE_SETTINGS                   0x08
+#define ETM_CAN_CMD_ID_RESET_MCU                                        0x00
+#define ETM_CAN_CMD_ID_LOAD_DEFAULT_CALIBRATION                         0x01
+#define ETM_CAN_CMD_ID_LOAD_REV_AND_SERIAL_NUMBER                       0x02
+#define ETM_CAN_CMD_ID_SET_CAL_PAIR                                     0x03
+#define ETM_CAN_CMD_ID_SET_RAM_DEBUG                                    0x04
+#define ETM_CAN_CMD_ID_SET_EEPROM_DEBUG                                 0x05
+#define ETM_CAN_CMD_ID_SET_IGNORE_FAULTS                                0x06
+#define ETM_CAN_CMD_ID_CLEAR_DEBUG                                      0x07
+#define ETM_CAN_CMD_ID_SCOPE_SETTINGS                                   0x08
 
-#define ETM_CAN_CMD_ID_HVPS_SET_POINTS                  0x10
-#define ETM_CAN_CMD_ID_MAGNET_SET_POINTS                0x11
-#define ETM_CAN_CMD_ID_AFC_HOME_POSTION                 0x12
-#define ETM_CAN_CMD_ID_GUN_PULSE_TOP_SET_POINTS         0x13
-#define ETM_CAN_CMD_ID_GUN_CATHODE_SET_POINTS           0x14
-#define ETM_CAN_CMD_ID_ALL_DOSE_SET_POINTS_REGISTER_A   0x15
-#define ETM_CAN_CMD_ID_ALL_DOSE_SET_POINTS_REGISTER_B   0x16
-
-
-#define ETM_CAN_CMD_ID_DISCRETE_CMD                     0x1F                       
-
-#define DISCRETE_CMD_BUFFER_EMPTY                       0x00
-#define DISCRETE_CMD_AFC_DO_AUTO_ZERO                   0x01
-#define DISCRETE_CMD_AFC_SELECT_MANUAL_MODE             0x02
-#define DISCRETE_CMD_AFC_SELECT_AUTOMATIC_MODE          0x03
-#define DISCRETE_CMD_COOLING_RESET_BOTTLE_COUNT         0x04
+#define ETM_CAN_CMD_ID_HVPS_SET_POINTS                                  0x10
+#define ETM_CAN_CMD_ID_MAGNET_SET_POINTS                                0x11
+#define ETM_CAN_CMD_ID_AFC_HOME_POSTION                                 0x12
+#define ETM_CAN_CMD_ID_GUN_PULSE_TOP_SET_POINTS                         0x13
+#define ETM_CAN_CMD_ID_GUN_CATHODE_SET_POINTS                           0x14
+#define ETM_CAN_CMD_ID_ALL_DOSE_SET_POINTS_REGISTER_A                   0x15
+#define ETM_CAN_CMD_ID_ALL_DOSE_SET_POINTS_REGISTER_B                   0x16
 
 
-
-//------------------ DATA LOGGING REGISTERS --------------------------//
-
-
-
-/*
-// Default data logging registers
-#define ETM_CAN_DATA_LOG_REGISTER_BOARD_SPECIFIC_0                      0x000 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_BOARD_SPECIFIC_1                      0x010 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_BOARD_SPECIFIC_2                      0x020 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_BOARD_SPECIFIC_3                      0x030 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_BOARD_SPECIFIC_4                      0x040 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_BOARD_SPECIFIC_5                      0x050 // This gets or'd with board address
-
-#define ETM_CAN_DATA_LOG_REGISTER_STANDARD_ANALOG_DATA                  0x060 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_RAM_WATCH_DATA                        0x070 // This gets or'd with board address
-
-#define ETM_CAN_DATA_LOG_REGISTER_CONFIG_0                              0x080 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_CONFIG_1                              0x090 // This gets or'd with board address
-
-// 0x0A0 - > 0x0F0 Available future Use
-
-#define ETM_CAN_DATA_LOG_REGISTER_FAST_LOG_0                            0x100 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_FAST_LOG_1                            0x110 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_FAST_LOG_2                            0x120 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_FAST_LOG_3                            0x130 // This gets or'd with board address
-
-#define ETM_CAN_DATA_LOG_SCOPE_A_DATA_16_BIT                            0x140 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_SCOPE_A_DATA_8_BIT                             0x150 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_SCOPE_A_DATA_12_BIT                            0x160 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_SCOPE_A_DATA_10_BIT                            0x170 // This gets or'd with board address
-
-#define ETM_CAN_DATA_LOG_SCOPE_B_DATA_16_BIT                            0x180 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_SCOPE_B_DATA_8_BIT                             0x190 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_SCOPE_B_DATA_12_BIT                            0x1A0 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_SCOPE_B_DATA_10_BIT                            0x1B0 // This gets or'd with board address
-
-#define ETM_CAN_DATA_LOG_SCOPE_PULSE_CURRENT                            0x1C0 // This gets or'd with board address
-
-// 0x1D0 - Unused
-
-#define ETM_CAN_DATA_LOG_SCOPE_HV_VMON_12_BIT                           0x1E0 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_SCOPE_HV_VMON_8_BIT                            0x1F0 // This gets or'd with board address
-
-#define ETM_CAN_DATA_LOG_REGISTER_DEBUG_0                               0x200 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_DEBUG_1                               0x210 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_DEBUG_2                               0x220 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_DEBUG_3                               0x230 // This gets or'd with board address
-
-#define ETM_CAN_DATA_LOG_REGISTER_STANDARD_DEBUG_0                      0x240 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_STANDARD_DEBUG_1                      0x250 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_STANDARD_DEBUG_2                      0x260 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_STANDARD_DEBUG_3                      0x270 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_STANDARD_DEBUG_4                      0x280 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_STANDARD_DEBUG_5                      0x290 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_STANDARD_DEBUG_6                      0x2A0 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_STANDARD_DEBUG_7                      0x2B0 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_STANDARD_DEBUG_8                      0x2C0 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_STANDARD_DEBUG_9                      0x2D0 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_STANDARD_DEBUG_10                     0x2E0 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_STANDARD_DEBUG_11                     0x2F0 // This gets or'd with board address
-
-#define ETM_CAN_DATA_LOG_REGISTER_CALIBRATION_DATA_0                    0x300 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_CALIBRATION_DATA_1                    0x310 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_CALIBRATION_DATA_2                    0x320 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_CALIBRATION_DATA_3                    0x330 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_CALIBRATION_DATA_4                    0x340 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_CALIBRATION_DATA_5                    0x350 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_CALIBRATION_DATA_6                    0x360 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_CALIBRATION_DATA_7                    0x370 // This gets or'd with board address
-
-//0x380 -> 0x3F0 Available for Future Calibration data channels 8->F
-*/
-
-// Custom High Speed Data Logging Registers
-#define ETM_CAN_DATA_LOG_REGISTER_HV_LAMBDA_FAST_LOG_0                  ETM_CAN_DATA_LOG_REGISTER_FAST_LOG_0 | ETM_CAN_ADDR_HV_LAMBDA_BOARD
-#define ETM_CAN_DATA_LOG_REGISTER_MAGNETRON_MON_FAST_LOG_0              ETM_CAN_DATA_LOG_REGISTER_FAST_LOG_0 | ETM_CAN_ADDR_MAGNETRON_CURRENT_BOARD
-#define ETM_CAN_DATA_LOG_REGISTER_AFC_FAST_LOG_0                        ETM_CAN_DATA_LOG_REGISTER_FAST_LOG_0 | ETM_CAN_ADDR_AFC_CONTROL_BOARD
-#define ETM_CAN_DATA_LOG_REGISTER_TARGET_MON_FAST_LOG_0                 ETM_CAN_DATA_LOG_REGISTER_FAST_LOG_0 | ETM_CAN_ADDR_TARGET_CURRENT_BOARD
-#define ETM_CAN_DATA_LOG_REGISTER_DOSE_LOG_0                            ETM_CAN_DATA_LOG_REGISTER_DOSE_LOG_0 | ETM_CAN_ADDR_DOSE_MONITOR_BOARD
-
-// DPARKER NEED TO DECREASE THE AMOUNT OF PULSE BY PULSE DATA LOGGING ON 800HZ SYSTEM.  CONDENSE DATA TO SEND EVERY OTHER PULSE
-
-
+#define ETM_CAN_CMD_ID_DISCRETE_CMD                                     0x1F                       
 
 // Can interrupt ISR for slave modules
 #define BUFFER_FULL_BIT    0x0080
@@ -691,7 +495,156 @@ unsigned int ETMCanBufferNotEmpty(ETMCanMessageBuffer* buffer_ptr);
 #define MacroETMCanCheckTXBuffer() if (!(*CXTX0CON_ptr & TX_REQ_BIT)) { if (_C1IE) {_C1IF = 1;} else {_C2IF = 1;}}
 
 
-#define CAN_PORT_2  2
-#define CAN_PORT_1  1
+// SCOPE MESSAGE REGISTER DEFINES
+#define ETM_CAN_DATA_LOG_REGISTER_SCOPE_A                        0x180
+#define ETM_CAN_DATA_LOG_REGISTER_SCOPE_B                        0x190
+#define ETM_CAN_DATA_LOG_REGISTER_PULSE_SCOPE_DATA               0x1A0
+#define ETM_CAN_DATA_LOG_REGISTER_HV_VMON_DATA                   0x1B0
+
+// From ETM_EEPROM - this module only needs access to this fuction
+unsigned int ETMEEPromPrivateReadSinglePage(unsigned int page_number, unsigned int *page_data);
+
+
+
+
+/*
+
+typedef struct {
+  unsigned control_not_ready:1;
+  unsigned control_not_configured:1;
+  unsigned control_self_check_error:1;
+  unsigned control_3_unused:1;
+  unsigned control_4_unused:1;
+  unsigned control_5_unused:1;
+  unsigned control_6_unused:1;
+  unsigned control_7_unused:1;
+  
+  unsigned notice_0:1;
+  unsigned notice_1:1;
+  unsigned notice_2:1;
+  unsigned notice_3:1;
+  unsigned notice_4:1;
+  unsigned notice_5:1;
+  unsigned notice_6:1;
+  unsigned notice_7:1;
+} ETMCanStatusRegisterControlAndNoticeBits;
+
+typedef struct {
+  unsigned fault_0:1;
+  unsigned fault_1:1;
+  unsigned fault_2:1;
+  unsigned fault_3:1;
+  unsigned fault_4:1;
+  unsigned fault_5:1;
+  unsigned fault_6:1;
+  unsigned fault_7:1;
+  unsigned fault_8:1;
+  unsigned fault_9:1;
+  unsigned fault_A:1;
+  unsigned fault_B:1;
+  unsigned fault_C:1;
+  unsigned fault_D:1;
+  unsigned fault_E:1;
+  unsigned fault_F:1;
+} ETMCanStatusRegisterFaultBits;
+
+typedef struct {
+  unsigned warning_0:1;
+  unsigned warning_1:1;
+  unsigned warning_2:1;
+  unsigned warning_3:1;
+  unsigned warning_4:1;
+  unsigned warning_5:1;
+  unsigned warning_6:1;
+  unsigned warning_7:1;
+  unsigned warning_8:1;
+  unsigned warning_9:1;
+  unsigned warning_A:1;
+  unsigned warning_B:1;
+  unsigned warning_C:1;
+  unsigned warning_D:1;
+  unsigned warning_E:1;
+  unsigned warning_F:1;
+} ETMCanStatusRegisterWarningBits;
+
+typedef struct {
+  unsigned not_logged_0:1;
+  unsigned not_logged_1:1;
+  unsigned not_logged_2:1;
+  unsigned not_logged_3:1;
+  unsigned not_logged_4:1;
+  unsigned not_logged_5:1;
+  unsigned not_logged_6:1;
+  unsigned not_logged_7:1;
+  unsigned not_logged_8:1;
+  unsigned not_logged_9:1;
+  unsigned not_logged_A:1;
+  unsigned not_logged_B:1;
+  unsigned not_logged_C:1;
+  unsigned not_logged_D:1;
+  unsigned not_logged_E:1;
+  unsigned not_logged_F:1;
+} ETMCanStatusRegisterNotLoggedBits;
+
+
+
+typedef struct {
+  ETMCanStatusRegisterControlAndNoticeBits   control_notice_bits;  // 16 bits
+  ETMCanStatusRegisterFaultBits              fault_bits;    // 16 bits
+  ETMCanStatusRegisterWarningBits            warning_bits;  // 16 bits
+  ETMCanStatusRegisterNotLoggedBits          not_logged_bits;   // 16 bits
+} ETMCanStatusRegister;
+
+*/
+
+typedef struct {
+  unsigned int control_notice_bits;
+  unsigned int fault_bits;
+  unsigned int warning_bits;
+  unsigned int not_logged_bits;
+} ETMCanStatusRegister;
+
+#define _CONTROL_NOT_READY_BIT                0x0001
+#define _CONTROL_NOT_CONFIGURED_BIT           0x0002
+
+
+
+
+
+// DPARKER status needs to be public, but not the rest of this.  Is this possible?
+// DPARKER does the can module need to handle the faults someday???  what would this look like
+
+// --------------- Board Logging Data ----------------------- //
+
+typedef struct {
+  ETMCanStatusRegister    status;             // This is 4 words of status data for the slave
+
+  // Can data log - 0x00Z -> 0x05Z
+  unsigned int            log_data[24];       // This is 24 words (6 registers) of logging data passed to the GUI
+                                              // This data should be managed by the user application program
+                                              // use #define to map the relevant variables to these locations
+
+  // Can data log - 0x06Z
+  unsigned int            device_id_high_word;
+  unsigned int            device_id_low_word;
+  unsigned int            device_id_dash_number;
+  unsigned int            device_rev_2x_ASCII;
+
+  // Can data log - 0x07Z
+  unsigned int            device_serial_number;
+  unsigned int            device_firmware_rev_agile;
+  unsigned int            device_firmware_branch;
+  unsigned int            device_firmware_branch_rev;
+
+  unsigned int            connection_timeout;                // On the ECB this is used to flag if the board connection has timed out or not.
+  unsigned long           time_last_status_message_recieved; // On the ECB this is used to track the last time a status message was recieved from this board.  
+  unsigned int            spare;
+                                            // This should be read only to the user application program
+} ETMCanBoardData;
+
+
+
+
+
 
 #endif

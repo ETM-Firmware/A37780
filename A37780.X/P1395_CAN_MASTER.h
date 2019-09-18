@@ -3,6 +3,7 @@
 
 
 #include "P1395_CAN_CORE.h"  // This is needed for status register deffenition
+#include "P1395_CAN_CORE_PUBLIC.h"
 #include "ETM_LINAC_MODBUS.h"
 
 

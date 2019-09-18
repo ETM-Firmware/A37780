@@ -137,8 +137,8 @@ void ETMCanMasterInitialize(unsigned int requested_can_port, unsigned long fcy, 
   sync_message.pulse_count = 0;
   sync_message.next_energy_level = 0;
   sync_message.prf_from_ecb = 0;
-  sync_message.scope_A_select = 0;
-  sync_message.scope_B_select = 0;
+  sync_message.unused_A = 0;
+  sync_message.unused_B = 0;
       
   debug_data_ecb.reset_count = persistent_data_reset_count;
   debug_data_ecb.can_timeout = persistent_data_can_timeout_count;
@@ -307,7 +307,7 @@ static void LocalTransmitSync(void) {
   sync_transmit.word0 = *(unsigned int*)&sync_message.sync_0_control_word;
   sync_transmit.word1 = *(unsigned int*)&sync_message.pulse_count;
   sync_transmit.word2 = sync_message.prf_from_ecb;
-  sync_transmit.word3 = *(unsigned int*)&sync_message.scope_A_select;
+  sync_transmit.word3 = *(unsigned int*)&sync_message.unused_A;
   
   ETMCanTXMessage(&sync_transmit, CXTX1CON_ptr);
   debug_data_ecb.can_tx_1++;
