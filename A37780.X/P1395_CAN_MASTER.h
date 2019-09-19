@@ -295,7 +295,7 @@ extern ETMCanBoardData local_data_mirror[NUMBER_OF_DATA_MIRRORS];
 extern ETMCanBoardDebuggingData debug_data_slave_mirror;
 extern ETMCanBoardDebuggingData debug_data_ecb;
 
-
+/*
 #define _CONTROL_NOT_READY            ecb_data.status.control_notice_bits.control_not_ready
 #define _CONTROL_NOT_CONFIGURED       ecb_data.status.control_notice_bits.control_not_configured
 #define _CONTROL_SELF_CHECK_ERROR     ecb_data.status.control_notice_bits.control_self_check_error
@@ -365,6 +365,106 @@ extern ETMCanBoardDebuggingData debug_data_ecb;
 #define _FAULT_REGISTER               *(unsigned int*)&ecb_data.status.fault_bits
 #define _WARNING_REGISTER             *(unsigned int*)&ecb_data.status.warning_bits
 #define _NOT_LOGGED_REGISTER          *(unsigned int*)&ecb_data.status.not_logged_bits
+
+*/
+
+
+//void ETMCanSlaveStatusUpdateBitNotReady(unsigned int value);
+//#define NOT_READY         1
+//#define READY             0
+
+//void ETMCanSlaveStatusSetNoticeBit(unsigned int notice_bit);
+
+//unsigned int ETMCanSlaveStatusCheckNotConfigured(void);
+// Will return 0xFFFF if not configured, 0 otherwise
+
+
+void ETMCanMasterStatusFaultResetAll(void);
+
+void ETMCanMasterStatusUpdateFaultBit(unsigned int fault_bit, unsigned int value);
+
+unsigned int ETMCanMasterStatusReadFaultBit(unsigned int fault_bit);
+// Will return 0xFFFF if the fault bit is set, 0 otherwise
+
+unsigned int ETMCanMasterStatusReadFaultRegister(void);
+// Will return 0xFFFF if ANY fault bit is set, 0 otherwise
+
+void ETMCanMasterStatusUpdateLoggedBit(unsigned int logged_bit, unsigned int value);
+
+unsigned int ETMCanMasterStatusReadLoggedBit(unsigned int logged_bit);
+// Will return 0xFFFF if the bit is set, 0 otherwise
+
+void ETMCanMasterStatusUpdateNotLoggedBit(unsigned int not_logged_bit, unsigned int value);
+
+unsigned int ETMCanMasterStatusReadNotLoggedBit(unsigned int not_logged_bit);
+// Will return 0xFFFF if the bit is set, 0 otherwise
+
+
+
+
+#define _FAULT_CAN_COMMUNICATION      0x0001
+#define _FAULT_1                      0x0002
+#define _FAULT_2                      0x0004 
+#define _FAULT_3                      0x0008
+#define _FAULT_4                      0x0010
+#define _FAULT_5                      0x0020
+#define _FAULT_6                      0x0040
+#define _FAULT_7                      0x0080
+#define _FAULT_8                      0x0100
+#define _FAULT_9                      0x0200
+#define _FAULT_A                      0x0400
+#define _FAULT_B                      0x0800
+#define _FAULT_C                      0x1000
+#define _FAULT_D                      0x2000
+#define _FAULT_E                      0x4000
+#define _FAULT_F                      0x8000
+
+/*
+#define _NOTICE_0                     0x0100
+#define _NOTICE_1                     0x0200
+#define _NOTICE_2                     0x0400
+#define _NOTICE_3                     0x0800
+#define _NOTICE_4                     0x1000
+#define _NOTICE_5                     0x2000
+#define _NOTICE_6                     0x4000
+#define _NOTICE_7                     0x8000
+
+*/
+
+
+#define _LOGGED_STATUS_0              0x0001
+#define _LOGGED_STATUS_1              0x0002
+#define _LOGGED_STATUS_2              0x0004
+#define _LOGGED_STATUS_3              0x0008
+#define _LOGGED_STATUS_4              0x0010
+#define _LOGGED_STATUS_5              0x0020
+#define _LOGGED_STATUS_6              0x0040
+#define _LOGGED_STATUS_7              0x0080
+#define _LOGGED_STATUS_8              0x0100
+#define _LOGGED_STATUS_9              0x0200
+#define _LOGGED_STATUS_A              0x0400
+#define _LOGGED_STATUS_B              0x0800
+#define _LOGGED_STATUS_C              0x1000
+#define _LOGGED_STATUS_D              0x2000
+#define _LOGGED_STATUS_E              0x4000
+#define _LOGGED_STATUS_F              0x8000
+
+#define _NOT_LOGGED_STATUS_0          0x0001
+#define _NOT_LOGGED_STATUS_1          0x0002
+#define _NOT_LOGGED_STATUS_2          0x0004
+#define _NOT_LOGGED_STATUS_3          0x0008
+#define _NOT_LOGGED_STATUS_4          0x0010
+#define _NOT_LOGGED_STATUS_5          0x0020
+#define _NOT_LOGGED_STATUS_6          0x0040
+#define _NOT_LOGGED_STATUS_7          0x0080
+#define _NOT_LOGGED_STATUS_8          0x0100
+#define _NOT_LOGGED_STATUS_9          0x0200
+#define _NOT_LOGGED_STATUS_A          0x0400
+#define _NOT_LOGGED_STATUS_B          0x0800
+#define _NOT_LOGGED_STATUS_C          0x1000
+#define _NOT_LOGGED_STATUS_D          0x2000
+#define _NOT_LOGGED_STATUS_E          0x4000
+#define _NOT_LOGGED_STATUS_F          0x8000
 
 
 #endif

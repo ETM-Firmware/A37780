@@ -119,12 +119,14 @@ void ETMCanMasterInitialize(unsigned int requested_can_port, unsigned long fcy, 
   etm_can_master_can_led = can_operation_led;
 
   persistent_data_reset_count++;
-  // DPARKER this needs to be a setting somehow
+  // DPARKER this needs to be a setting somehow - what the hell does/did this do??
+  // DPARKER THIS IS CHECKING IF LAST STARTUP WAS A POWER CYCLE - stored in not logged 0
+  /*
   if (_NOT_LOGGED_0) {
     persistent_data_reset_count = 0;
     persistent_data_can_timeout_count = 0;
   }
-
+  */
   sync_message.sync_0_control_word.sync_0_reset_enable = 0;
   sync_message.sync_0_control_word.sync_1_high_speed_logging_enabled = 0;
   sync_message.sync_0_control_word.sync_4_cooling_fault = 1;
@@ -660,15 +662,15 @@ static void LocalReceiveSlaveStatus(ETMCanMessage* message_ptr) {
     return;
   }
 
-  status_message.control_notice_bits = *(ETMCanStatusRegisterControlAndNoticeBits*)&message_ptr->word0;
-  status_message.fault_bits          = *(ETMCanStatusRegisterFaultBits*)&message_ptr->word1;
-  status_message.warning_bits        = *(ETMCanStatusRegisterWarningBits*)&message_ptr->word2;
-  status_message.not_logged_bits     = *(ETMCanStatusRegisterNotLoggedBits*)&message_ptr->word3;
+  status_message.control_notice_bits = message_ptr->word0;
+  status_message.fault_bits          = message_ptr->word1;
+  status_message.warning_bits        = message_ptr->word2;
+  status_message.not_logged_bits     = message_ptr->word3;
 
 
   if (((etm_can_master_boards_to_ignore >> source_board) & 0x0001) == 0) {
     // We are not ignoring faults from this board
-    if (status_message.control_notice_bits.control_not_ready) {
+    if (status_message.control_notice_bits & _CONTROL_NOT_READY_BIT) {
       can_master_all_slaves_ready = 0x0000;
     }
   }
@@ -682,6 +684,9 @@ static void LocalReceiveSlaveStatus(ETMCanMessage* message_ptr) {
 
 static void LocalUpdateSlaveEventLog(ETMCanStatusRegister* previous_status, ETMCanStatusRegister* current_status, unsigned int source_board) {
   unsigned int log_id;
+  unsigned int n;
+  unsigned int change;
+  unsigned int new_value;
 
   /*
     Log ID for status message changes
@@ -694,7 +699,72 @@ static void LocalUpdateSlaveEventLog(ETMCanStatusRegister* previous_status, ETMC
 
   log_id = 0xC000;
   log_id += source_board << 8;
+
+  // Check for changes to the control bits
+  if ((previous_status->control_notice_bits & 0x00FF) != (current_status->control_notice_bits & 0x00FF)) {
+    change =  (previous_status->control_notice_bits ^ current_status->control_notice_bits) & 0x00FF;
+    new_value = current_status->control_notice_bits;
+    for (n = 0; n < 8; n++) {
+      if (change & 0x0001) {
+	if (new_value & 0x0001) {
+	  SendToEventLog(log_id + n);
+	} else {
+	  SendToEventLog(log_id + 0x10 + n);
+	}
+      }
+      change >>= 1;
+      new_value >>= 1;
+    }
+  }
+
+  // Check for notice bits
+  change = (current_status->control_notice_bits & 0xFF00) >> 8 ;
+  if (change) {
+    for (n = 0; n < 8; n++) {
+      if (change & 0x0001) {
+	SendToEventLog(log_id + 0x20 + n);
+      }
+    }
+    change >>= 1;
+  }
+
+  // Check for changes to the fault bits
+  if (previous_status->fault_bits != current_status->fault_bits) {
+    change =  previous_status->fault_bits ^ current_status->fault_bits;
+    new_value = current_status->fault_bits;
+    for (n = 0; n < 16; n++) {
+      if (change & 0x0001) {
+	if (new_value & 0x0001) {
+	  SendToEventLog(log_id + 0x30 + n);
+	} else {
+	  SendToEventLog(log_id + 0x40 + n);
+	}
+      }
+      change >>= 1;
+      new_value >>= 1;
+    }
+  }
+
+  // Check for changes to the warning bit (logged bits)
+  if (previous_status->warning_bits != current_status->warning_bits) {
+    change =  previous_status->warning_bits ^ current_status->warning_bits;
+    new_value = current_status->warning_bits;
+    for (n = 0; n < 16; n++) {
+      if (change & 0x0001) {
+	if (new_value & 0x0001) {
+	  SendToEventLog(log_id + 0x50 + n);
+	} else {
+	  SendToEventLog(log_id + 0x60 + n);
+	}
+      }
+      change >>= 1;
+      new_value >>= 1;
+    }
+  }
+
+
   
+  /*
   // First update the control_notice_bits
   if ((*(unsigned int*)&previous_status->control_notice_bits) != (*(unsigned int*)&current_status->control_notice_bits)) {
     //update based on changes
@@ -802,8 +872,7 @@ static void LocalUpdateSlaveEventLog(ETMCanStatusRegister* previous_status, ETMC
       current_status->control_notice_bits.notice_7 = 0;
     }
   }
-  
-  
+
   if ((*(unsigned int*)&previous_status->fault_bits) != (*(unsigned int*)&current_status->fault_bits)) {
     
     if (previous_status->fault_bits.fault_0 != current_status->fault_bits.fault_0) {
@@ -934,6 +1003,7 @@ static void LocalUpdateSlaveEventLog(ETMCanStatusRegister* previous_status, ETMC
       }
     }
   }
+
   
 
   if ((*(unsigned int*)&previous_status->warning_bits) != (*(unsigned int*)&current_status->warning_bits)) {
@@ -1066,6 +1136,7 @@ static void LocalUpdateSlaveEventLog(ETMCanStatusRegister* previous_status, ETMC
       }
     }
   }
+  */
 }
 
 
@@ -1519,7 +1590,7 @@ static void LocalUpdateSlaveNotReady(void) {
     if (ignore & 0x0001) {
       // We are ignoring this board
     } else {
-      if(local_data_mirror[n].status.control_notice_bits.control_not_ready) {
+      if(local_data_mirror[n].status.control_notice_bits & _CONTROL_NOT_READY_BIT) {
 	all_slaves_ready = 0x0000;
       }
     }
@@ -1650,7 +1721,7 @@ unsigned int ETMCanMasterCheckAllBoardsConfigured(void) {
   for(n = 0; n < NUMBER_OF_DATA_MIRRORS; n++) {
     if ((ignore & 0x0001) == 0) {
       // We are not ignoring this board
-      if (local_data_mirror[n].status.control_notice_bits.control_not_configured) {
+      if (local_data_mirror[n].status.control_notice_bits & _CONTROL_NOT_CONFIGURED_BIT) {
 	return 0;
       }
     }
@@ -1695,7 +1766,7 @@ unsigned int ETMCanMasterCheckSlaveConfigured(unsigned int board_id) {
   ignore >>= board_id;
   if ((ignore & 0x0001) == 0) {
     // We are not ignoring this board
-    if (local_data_mirror[board_id].status.control_notice_bits.control_not_configured) {
+    if (local_data_mirror[board_id].status.control_notice_bits & _CONTROL_NOT_CONFIGURED_BIT) {
       return 0;
     }
     if (local_data_mirror[board_id].connection_timeout) {
@@ -1723,7 +1794,7 @@ unsigned int ETMCanMasterCheckSlaveReady(unsigned int board_id) {
     return 0xFFFF;
   }
   
-  if (local_data_mirror[board_id].status.control_notice_bits.control_not_ready) {
+  if (local_data_mirror[board_id].status.control_notice_bits & _CONTROL_NOT_READY_BIT) {
     return 0x0000;
   }
 
@@ -1766,6 +1837,77 @@ unsigned int ETMCanMasterReturnSlaveStatusBit(unsigned int bit_select, unsigned 
   return 0x0000;
 }
 
+
+void ETMCanMasterStatusFaultResetAll(void) {
+  ecb_data.status.fault_bits = 0;
+}
+
+
+void ETMCanMasterStatusUpdateFaultBit(unsigned int fault_bit, unsigned int value) {
+  if (value) {
+    ecb_data.status.fault_bits |= fault_bit;
+  }
+}
+
+
+unsigned int ETMCanMasterStatusReadFaultBit(unsigned int fault_bit) {
+  unsigned int temp_faults;
+  
+  temp_faults  = ecb_data.status.fault_bits;
+  temp_faults &= !debug_data_ecb.faults_being_ignored;
+  
+  if (temp_faults & fault_bit) {
+    return 0xFFFF;
+  }
+  return 0;
+}
+
+
+unsigned int ETMCanMasterStatusReadFaultRegister(void) {
+  unsigned int temp_faults;
+
+  temp_faults  = ecb_data.status.fault_bits;
+  temp_faults &= !debug_data_ecb.faults_being_ignored;
+  
+  if (temp_faults) {
+    return 0xFFFF;
+  }
+  return 0;
+}
+
+
+void ETMCanMasterStatusUpdateLoggedBit(unsigned int logged_bit, unsigned int value) {
+  if (value) {
+    ecb_data.status.warning_bits |= logged_bit;
+  } else {
+    ecb_data.status.warning_bits &= !logged_bit;
+  }
+}
+
+
+unsigned int ETMCanMasterStatusReadLoggedBit(unsigned int logged_bit) {
+  if (ecb_data.status.warning_bits & logged_bit) {
+    return 0xFFFF;
+  }
+  return 0;
+}
+
+
+void ETMCanMasterStatusUpdateNotLoggedBit(unsigned int not_logged_bit, unsigned int value) {
+  if (value) {
+    ecb_data.status.not_logged_bits |= not_logged_bit;
+  } else {
+    ecb_data.status.not_logged_bits &= !not_logged_bit;
+  }
+}
+
+
+unsigned int ETMCanMasterStatusReadNotLoggedBit(unsigned int not_logged_bit) {
+  if (ecb_data.status.not_logged_bits & not_logged_bit) {
+    return 0xFFFF;
+  }
+  return 0;
+}
 
 
 void ETMCanMasterSetScaledMagnetronHeaterCurrent(unsigned int scaled_current_setting) {

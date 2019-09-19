@@ -576,7 +576,7 @@ void DoStateMachine(void) {
     SetGUNContactor(CONTACTOR_CLOSED);
     DisableTriggers();
     global_data_A37780.drive_up_fault_counter = 0;
-    _STATUS_DRIVE_UP_TIMEOUT = 0;
+    ETMCanMasterStatusUpdateLoggedBit(_STATUS_DRIVE_UP_TIMEOUT, 0);
      while (ecb_data.control_state == STATE_READY) {
       DoA37780();
       if (CheckXRayOn() == 1) {
@@ -828,11 +828,14 @@ unsigned int CheckWarmupFault(void) {
 
 // DPARKER
 unsigned int CheckFaultLatching(void) {
-  if (_FAULT_REPEATED_DRIVE_UP_FAULT || _FAULT_REPEATED_HV_ON_FAULT) {
+  if (ETMCanMasterStatusReadFaultBit(_FAULT_REPEATED_DRIVE_UP_FAULT) ||
+      ETMCanMasterStatusReadFaultBit(_FAULT_REPEATED_HV_ON_FAULT)) {
     return 1;
   }
-
-  if (_FAULT_X_RAY_MISMATCH || _FAULT_X_RAY_ON_BEAM_DISABLED || _FAULT_X_RAY_ON_WRONG_STATE) {
+  
+  if (ETMCanMasterStatusReadFaultBit(_FAULT_X_RAY_MISMATCH) ||
+      ETMCanMasterStatusReadFaultBit(_FAULT_X_RAY_ON_BEAM_DISABLED) ||
+      ETMCanMasterStatusReadFaultBit(_FAULT_X_RAY_ON_WRONG_STATE)) {
     return 1;
   }
     
@@ -841,19 +844,12 @@ unsigned int CheckFaultLatching(void) {
     return 1;
   }
   
-  // DPARKER - CREATE ECB X_RAY_MISMATCH FAULT AND ADD IT HERE
-  /*
-  if (_PULSE_SYNC_FAULT_X_RAY_MISMATCH) {
-    return 1;
-  }
-  */
-  
   return 0;
 }
 
 
 unsigned int CheckStandbyFault(void) {
-   if (_FAULT_REGISTER) {
+  if (ETMCanMasterStatusReadFaultRegister()) {
     return 1;
   }
   
@@ -868,8 +864,8 @@ unsigned int CheckStandbyFault(void) {
   }
   
   if (global_data_A37780.drive_up_timer > DRIVE_UP_TIMEOUT) {
-    _STATUS_DRIVE_UP_TIMEOUT = 1;
-    SendToEventLog(LOG_ID_DRIVE_UP_TIMEOUT);
+    ETMCanMasterStatusUpdateLoggedBit(_STATUS_DRIVE_UP_TIMEOUT, 1);
+    SendToEventLog(LOG_ID_DRIVE_UP_TIMEOUT);  // DPARKER MAKE LOGGING PART OF THE STATUS UPDATE FUNCTION
     return 1;
   }
 
@@ -922,8 +918,7 @@ unsigned int CheckHVOnFault(void) {
     CheckStandbyFault();
     Any Board Reports Not Ready
   */
-
-  if (_FAULT_REGISTER) {
+  if (ETMCanMasterStatusReadFaultRegister()) {
     return 1;
   }
   
@@ -1166,26 +1161,14 @@ void DoA37780(void) {
     } else {
       ETMDigitalUpdateInput(&global_data_A37780.x_ray_on_mismatch_input, 0);
     }
-
-    if (ETMDigitalFilteredOutput(&global_data_A37780.x_ray_on_mismatch_input)) {
-      _FAULT_X_RAY_MISMATCH = 1;
-    } else if (ETMCanMasterCheckResetActive()) {
-      _FAULT_X_RAY_MISMATCH = 0;
-    }
-
+    ETMCanMasterStatusUpdateFaultBit(_FAULT_X_RAY_MISMATCH, ETMDigitalFilteredOutput(&global_data_A37780.x_ray_on_mismatch_input));
 
     if ((DISCRETE_INPUT_X_RAY_ON == ILL_X_RAY_ON_XRAY_ENABLED) && (BEAM_ENABLE_INPUT == ILL_BEAM_DISABLED)) {
       ETMDigitalUpdateInput(&global_data_A37780.x_ray_on_without_beam_enable_input, 1);
     } else {
       ETMDigitalUpdateInput(&global_data_A37780.x_ray_on_without_beam_enable_input, 0);
     }
-
-    if (ETMDigitalFilteredOutput(&global_data_A37780.x_ray_on_without_beam_enable_input)) {
-      _FAULT_X_RAY_ON_BEAM_DISABLED = 1;
-    } else if (ETMCanMasterCheckResetActive()) {
-      _FAULT_X_RAY_ON_BEAM_DISABLED = 0;
-    }
-    
+    ETMCanMasterStatusUpdateFaultBit(_FAULT_X_RAY_ON_BEAM_DISABLED, ETMDigitalFilteredOutput(&global_data_A37780.x_ray_on_without_beam_enable_input));
     
     if (DISCRETE_INPUT_X_RAY_ON != ILL_X_RAY_ON_XRAY_ENABLED) {
       ETMDigitalUpdateInput(&global_data_A37780.x_ray_on_wrong_state_input, 0);
@@ -1198,28 +1181,15 @@ void DoA37780(void) {
     } else {
       ETMDigitalUpdateInput(&global_data_A37780.x_ray_on_wrong_state_input, 1);
     }
+    ETMCanMasterStatusUpdateFaultBit(_FAULT_X_RAY_ON_WRONG_STATE, ETMDigitalFilteredOutput(&global_data_A37780.x_ray_on_wrong_state_input));
 
-    if (ETMDigitalFilteredOutput(&global_data_A37780.x_ray_on_wrong_state_input)) {
-      _FAULT_X_RAY_ON_WRONG_STATE = 1;
-    } else if (ETMCanMasterCheckResetActive()) {
-      _FAULT_X_RAY_ON_WRONG_STATE = 0;
-    }
-
-    
     if (PIN_IN_SPARE_READY_1) {
       ETMDigitalUpdateInput(&global_data_A37780.pfn_fan_fault_input, 1);
     } else {
       ETMDigitalUpdateInput(&global_data_A37780.pfn_fan_fault_input, 0);
     }
-
-    if (ETMDigitalFilteredOutput(&global_data_A37780.pfn_fan_fault_input)) {
-      _FAULT_PFN_FAN_FAULT = 1;
-    } else if (ETMCanMasterCheckResetActive()) {
-      _FAULT_PFN_FAN_FAULT = 0;
-    }
-
-
-    
+    ETMCanMasterStatusUpdateFaultBit(_FAULT_PFN_FAN_FAULT, ETMDigitalFilteredOutput(&global_data_A37780.pfn_fan_fault_input));
+				     
     
     /*
     
@@ -1296,16 +1266,11 @@ void DoA37780(void) {
 
     
     if (global_data_A37780.drive_up_fault_counter > MAX_DRIVE_UP_FAULTS) {
-      _FAULT_REPEATED_DRIVE_UP_FAULT = 1;
+      ETMCanMasterStatusUpdateFaultBit(_FAULT_REPEATED_DRIVE_UP_FAULT, 1);
     }
   
     if (global_data_A37780.high_voltage_on_fault_counter > MAX_HV_ON_FAULTS) {
-      _FAULT_REPEATED_HV_ON_FAULT = 1;
-    }
-
-    // DPARKER why is this needed if _FAULT_EEPROM_FAILURE is set on eeprom failure, why need both, how could it be cleared
-    if (global_data_A37780.eeprom_failure) {
-      _FAULT_EEPROM_FAILURE = 1;
+      ETMCanMasterStatusUpdateFaultBit(_FAULT_REPEATED_HV_ON_FAULT, 1);
     }
 
     // Update the cooling fault sync bit
@@ -1471,11 +1436,6 @@ void InitializeA37780(void) {
 
   */
   
-  _FAULT_REGISTER      = 0;
-  _CONTROL_REGISTER    = 0;
-  _WARNING_REGISTER    = 0;
-  _NOT_LOGGED_REGISTER = 0;
-
 
   global_data_A37780.ram_ptr_a = 0;
   global_data_A37780.ram_ptr_b = 0;
@@ -1551,7 +1511,7 @@ void InitializeA37780(void) {
     if (ETMEEPromReadPage(EEPROM_PAGE_ECB_COUNTER_AND_TIMERS, (unsigned int*)&ecb_data.system_counters) == 0) {
       if (ETMEEPromReadPage(EEPROM_PAGE_ECB_COUNTER_AND_TIMERS, (unsigned int*)&ecb_data.system_counters) == 0) {
 	// We need to create an error
-	_FAULT_EEPROM_FAILURE = 1;
+	ETMCanMasterStatusUpdateFaultBit(_FAULT_EEPROM_FAILURE, 1);
 	global_data_A37780.eeprom_failure |= 0b0000000010000000;
       }
     }
@@ -1570,7 +1530,9 @@ void InitializeA37780(void) {
 
   
   global_data_A37780.time_seconds_now = 0;
-  
+
+  // DPARKER Rework this, we can't set values in the can module until it is initialize
+  /*
   _STATUS_LAST_RESET_WAS_POWER_CYCLE = 1;
   
   if ((persistent_data_reset_check_a == PERSISTENT_RESET_CHECK_SYSTEM_RESART) &
@@ -1582,7 +1544,8 @@ void InitializeA37780(void) {
       (persistent_data_reset_check_b == PERSISTENT_RESET_CHECK_OTHER_RESET_XOR)) {
     _STATUS_LAST_RESET_WAS_POWER_CYCLE = 0;
   }
-    
+  */    
+
   CalculateHeaterWarmupTimers();     // Calculate all of the warmup counters based on previous warmup counters
 
 
@@ -1684,7 +1647,7 @@ void ReadSystemConfigurationFromEEProm(void) {
   if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_SETTING_0, (unsigned int*)&ecb_data.dose_level_0) == 0) {
     if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_SETTING_0, (unsigned int*)&ecb_data.dose_level_0) == 0) {
       if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_SETTING_0, (unsigned int*)&ecb_data.dose_level_0) == 0) {
-	_FAULT_EEPROM_FAILURE = 1;
+	ETMCanMasterStatusUpdateFaultBit(_FAULT_EEPROM_FAILURE, 1);
 	global_data_A37780.eeprom_failure |= 0b0000000000000001;
       }
     }
@@ -1694,7 +1657,7 @@ void ReadSystemConfigurationFromEEProm(void) {
   if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_SETTING_1, (unsigned int*)&ecb_data.dose_level_1) == 0) {
     if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_SETTING_1, (unsigned int*)&ecb_data.dose_level_1) == 0) {
       if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_SETTING_1, (unsigned int*)&ecb_data.dose_level_1) == 0) {
-	_FAULT_EEPROM_FAILURE = 1;
+	ETMCanMasterStatusUpdateFaultBit(_FAULT_EEPROM_FAILURE, 1);
 	global_data_A37780.eeprom_failure |= 0b0000000000000010;
       }
     }
@@ -1704,7 +1667,7 @@ void ReadSystemConfigurationFromEEProm(void) {
   if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_SETTING_2, (unsigned int*)&ecb_data.dose_level_2) == 0) {
     if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_SETTING_2, (unsigned int*)&ecb_data.dose_level_2) == 0) {
       if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_SETTING_2, (unsigned int*)&ecb_data.dose_level_2) == 0) {
-	_FAULT_EEPROM_FAILURE = 1;
+	ETMCanMasterStatusUpdateFaultBit(_FAULT_EEPROM_FAILURE, 1);
 	global_data_A37780.eeprom_failure |= 0b0000000000000100;
       }
     }
@@ -1714,7 +1677,7 @@ void ReadSystemConfigurationFromEEProm(void) {
   if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_SETTING_3, (unsigned int*)&ecb_data.dose_level_3) == 0) {
     if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_SETTING_3, (unsigned int*)&ecb_data.dose_level_3) == 0) {
       if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_SETTING_3, (unsigned int*)&ecb_data.dose_level_3) == 0) {
-	_FAULT_EEPROM_FAILURE = 1;
+	ETMCanMasterStatusUpdateFaultBit(_FAULT_EEPROM_FAILURE, 1);
 	global_data_A37780.eeprom_failure |= 0b0000000000001000;
       }
     }
@@ -1724,7 +1687,7 @@ void ReadSystemConfigurationFromEEProm(void) {
   if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_SETTING_ALL, (unsigned int*)&ecb_data.dose_level_all) == 0) {
     if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_SETTING_ALL, (unsigned int*)&ecb_data.dose_level_all) == 0) {
       if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_SETTING_ALL, (unsigned int*)&ecb_data.dose_level_all) == 0) {
-	_FAULT_EEPROM_FAILURE = 1;
+	ETMCanMasterStatusUpdateFaultBit(_FAULT_EEPROM_FAILURE, 1);
 	global_data_A37780.eeprom_failure |= 0b0000000000010000;
       }
     }
@@ -1734,7 +1697,7 @@ void ReadSystemConfigurationFromEEProm(void) {
   if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_COMPENSATION_A, (unsigned int*)&ecb_data.dose_compensation_group_a) == 0) {
     if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_COMPENSATION_A, (unsigned int*)&ecb_data.dose_compensation_group_a) == 0) {
       if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_COMPENSATION_A, (unsigned int*)&ecb_data.dose_compensation_group_a) == 0) {
-	_FAULT_EEPROM_FAILURE = 1;
+	ETMCanMasterStatusUpdateFaultBit(_FAULT_EEPROM_FAILURE, 1);
 	global_data_A37780.eeprom_failure |= 0b0000000000100000;
       }
     }
@@ -1744,7 +1707,7 @@ void ReadSystemConfigurationFromEEProm(void) {
   if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_COMPENSATION_B, (unsigned int*)&ecb_data.dose_compensation_group_b) == 0) {
     if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_COMPENSATION_B, (unsigned int*)&ecb_data.dose_compensation_group_b) == 0) {
       if (ETMEEPromReadPage(EEPROM_PAGE_ECB_DOSE_COMPENSATION_B, (unsigned int*)&ecb_data.dose_compensation_group_b) == 0) {
-	_FAULT_EEPROM_FAILURE = 1;
+	ETMCanMasterStatusUpdateFaultBit(_FAULT_EEPROM_FAILURE, 1);
 	global_data_A37780.eeprom_failure |= 0b0000000001000000;
       }
     }
@@ -1756,7 +1719,7 @@ void ReadSystemConfigurationFromEEProm(void) {
   if (ETMEEPromReadPage(EEPROM_PAGE_ECB_BOARD_CONFIGURATION, (unsigned int*)&ecb_data.config) == 0) {
     if (ETMEEPromReadPage(EEPROM_PAGE_ECB_BOARD_CONFIGURATION, (unsigned int*)&ecb_data.config) == 0) {
       if (ETMEEPromReadPage(EEPROM_PAGE_ECB_BOARD_CONFIGURATION, (unsigned int*)&ecb_data.config) == 0) {
-	_FAULT_EEPROM_FAILURE = 1;
+	ETMCanMasterStatusUpdateFaultBit(_FAULT_EEPROM_FAILURE, 1);
 	global_data_A37780.eeprom_failure |= 0b0000000010000000;
       }
     }
@@ -2097,7 +2060,7 @@ void ExecuteEthernetCommand(void) {
     
   case REGISTER_CMD_ECB_RESET_FAULTS:
     global_data_A37780.reset_requested = 1;
-    _FAULT_REGISTER = 0;
+    ETMCanMasterStatusFaultResetAll();
     global_data_A37780.drive_up_fault_counter = 0;
     global_data_A37780.high_voltage_on_fault_counter = 0;
     break;

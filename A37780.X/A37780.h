@@ -466,10 +466,10 @@ extern A37780GlobalVars global_data_A37780;
 
 
 // DPAKRER  - Need to evaluate how these are used under new control system
-#define _STATUS_PERSONALITY_LOADED                      _LOGGED_0
-#define _STATUS_DRIVE_UP_TIMEOUT                        _LOGGED_1
+#define _STATUS_PERSONALITY_LOADED                      _LOGGED_STATUS_0
+#define _STATUS_DRIVE_UP_TIMEOUT                        _LOGGED_STATUS_1
 
-#define _STATUS_LAST_RESET_WAS_POWER_CYCLE              _NOT_LOGGED_0
+#define _STATUS_LAST_RESET_WAS_POWER_CYCLE              _NOT_LOGGED_STATUS_0
 
 
 
