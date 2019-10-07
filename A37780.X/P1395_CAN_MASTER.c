@@ -6,6 +6,8 @@
 
 
 
+unsigned int ETMCanMasterGetBitNumber(unsigned int fault_bit);
+
 /*
 #define ETM_CAN_DATA_LOG_REGISTER_SCOPE_A                        0x180
 #define ETM_CAN_DATA_LOG_REGISTER_SCOPE_B                        0x190
@@ -454,6 +456,10 @@ void ETMCanMasterSendDiscreteCMD(unsigned int discrete_cmd_id) {
 
 void ETMCanMasterSendSlaveClearDebug(void) {
   LocalTransmitToSlave(ETM_CAN_CMD_ID_CLEAR_DEBUG, 0, 0, 0, 0);
+}
+
+void ETMCanMasterSendSlaveIgnoreMessage(unsigned int board_id, unsigned int unused_a, unsigned int unused_b, unsigned int ignore_bits) {
+  LocalTransmitToSlave(ETM_CAN_CMD_ID_SET_IGNORE_FAULTS, board_id, unused_a, unused_b, ignore_bits);
 }
 
 unsigned int ETMCanMasterCheckResetActive(void) {
@@ -1218,8 +1224,8 @@ void PulseDataLog(log_id, board_id, word3, word2, word1, word0) {
 
 
 
-#define LOG_ID_SLAVE_CONNECTION_TIMEOUT_BASE_ID           0x0000
-#define LOG_ID_SLAVE_CONNECTION_ESTABLISHED_BASE_ID       0x0080
+#define LOG_ID_SLAVE_CONNECTION_TIMEOUT_BASE_ID           0xC0F0
+#define LOG_ID_SLAVE_CONNECTION_ESTABLISHED_BASE_ID       0xC0F1
 
 static void LocalUpdateSlaveTimeout(void) {
   // DPARKER, NEED A WAY TO TELL THE CAN MODULE TO AVOID CERTAIN BOARDS.
@@ -1242,7 +1248,7 @@ static void LocalUpdateSlaveTimeout(void) {
       if (ETMTickGreaterThanNMilliseconds(ETM_CAN_MASTER_SLAVE_TIMEOUT_MILLI_SECONDS, local_data_mirror[n].time_last_status_message_recieved)) {
 	if (local_data_mirror[n].connection_timeout == 0) {
 	  // This is a new timeout
-	  SendToEventLog(LOG_ID_SLAVE_CONNECTION_TIMEOUT_BASE_ID + n);
+	  SendToEventLog(LOG_ID_SLAVE_CONNECTION_TIMEOUT_BASE_ID + (n << 8));
 	  persistent_data_can_timeout_count++;
 	  debug_data_ecb.can_timeout = persistent_data_can_timeout_count;
 	}
@@ -1251,7 +1257,7 @@ static void LocalUpdateSlaveTimeout(void) {
       } else {
 	if (local_data_mirror[n].connection_timeout == 0xFFFF) {
 	  // This board has just connected
-	  SendToEventLog(LOG_ID_SLAVE_CONNECTION_ESTABLISHED_BASE_ID + n);
+	  SendToEventLog(LOG_ID_SLAVE_CONNECTION_ESTABLISHED_BASE_ID + (n << 8));
 	}
 	local_data_mirror[n].connection_timeout = 0;
       }
@@ -1845,6 +1851,10 @@ void ETMCanMasterStatusFaultResetAll(void) {
 
 void ETMCanMasterStatusUpdateFaultBit(unsigned int fault_bit, unsigned int value) {
   if (value) {
+    if ((ecb_data.status.fault_bits & fault_bit) == 0) {
+      // It is a new fault, send to event log
+      SendToEventLog(0xCF20 + ETMCanMasterGetBitNumber(fault_bit));
+    }
     ecb_data.status.fault_bits |= fault_bit;
   }
 }
@@ -1854,7 +1864,7 @@ unsigned int ETMCanMasterStatusReadFaultBit(unsigned int fault_bit) {
   unsigned int temp_faults;
   
   temp_faults  = ecb_data.status.fault_bits;
-  temp_faults &= !debug_data_ecb.faults_being_ignored;
+  temp_faults &= ~debug_data_ecb.faults_being_ignored;
   
   if (temp_faults & fault_bit) {
     return 0xFFFF;
@@ -1867,7 +1877,7 @@ unsigned int ETMCanMasterStatusReadFaultRegister(void) {
   unsigned int temp_faults;
 
   temp_faults  = ecb_data.status.fault_bits;
-  temp_faults &= !debug_data_ecb.faults_being_ignored;
+  temp_faults &= ~debug_data_ecb.faults_being_ignored;
   
   if (temp_faults) {
     return 0xFFFF;
@@ -1878,9 +1888,17 @@ unsigned int ETMCanMasterStatusReadFaultRegister(void) {
 
 void ETMCanMasterStatusUpdateLoggedBit(unsigned int logged_bit, unsigned int value) {
   if (value) {
+    if ((ecb_data.status.warning_bits & logged_bit) == 0) {
+      // It is a new set bit, send to event log
+      SendToEventLog(0xCF40 + ETMCanMasterGetBitNumber(logged_bit));
+    }
     ecb_data.status.warning_bits |= logged_bit;
   } else {
-    ecb_data.status.warning_bits &= !logged_bit;
+    if (ecb_data.status.warning_bits & logged_bit) {
+      // It is a new clear bit, send to event log
+      SendToEventLog(0xCF50 + ETMCanMasterGetBitNumber(logged_bit));
+    }
+    ecb_data.status.warning_bits &= ~logged_bit;
   }
 }
 
@@ -1897,7 +1915,7 @@ void ETMCanMasterStatusUpdateNotLoggedBit(unsigned int not_logged_bit, unsigned 
   if (value) {
     ecb_data.status.not_logged_bits |= not_logged_bit;
   } else {
-    ecb_data.status.not_logged_bits &= !not_logged_bit;
+    ecb_data.status.not_logged_bits &= ~not_logged_bit;
   }
 }
 
@@ -1952,4 +1970,69 @@ void ETMCanMasterSelectScopeDataSourceHVVmon(unsigned int hv_vmon_source) {
   scope_data_b.hv_vmon_buffer_active = 1;
   scope_data_b.hv_vmon_ready_to_send = 0;
   scope_data_b.write_location = 0;
+}
+
+
+unsigned int ETMCanMasterGetBitNumber(unsigned int fault_bit) {
+  if (fault_bit == 0x0001) {
+    return 0;
+  }
+
+  if (fault_bit == 0x0002) {
+    return 1;
+  }
+
+  if (fault_bit == 0x0004) {
+    return 2;
+  }
+
+  if (fault_bit == 0x0008) {
+    return 3;
+  }
+
+   if (fault_bit == 0x0010) {
+    return 4;
+  }
+
+  if (fault_bit == 0x0020) {
+    return 5;
+  }
+
+  if (fault_bit == 0x0040) {
+    return 6;
+  }
+
+  if (fault_bit == 0x0080) {
+    return 7;
+  }
+
+  if (fault_bit == 0x0100) {
+    return 8;
+  }
+
+  if (fault_bit == 0x0200) {
+    return 9;
+  }
+
+  if (fault_bit == 0x0400) {
+    return 10;
+  }
+
+  if (fault_bit == 0x0800) {
+    return 11;
+  }
+
+  if (fault_bit == 0x1000) {
+    return 12;
+  }
+
+  if (fault_bit == 0x2000) {
+    return 13;
+  }
+
+  if (fault_bit == 0x4000) {
+    return 14;
+  }
+  
+  return 15;
 }

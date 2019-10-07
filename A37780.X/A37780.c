@@ -321,7 +321,7 @@ void DoStateMachine(void) {
     global_data_A37780.gun_heater_holdoff_timer = 0;
     ecb_data.control_state = STATE_SAFETY_SELF_TEST;
     SendToEventLog(LOG_ID_ENTERED_STATE_STARTUP);
-    if (_STATUS_LAST_RESET_WAS_POWER_CYCLE) {
+    if (_STATUS_NOT_LOGGED_LAST_RESET_WAS_POWER_CYCLE) {
       ETMCanMasterClearECBDebug();
       ETMCanMasterSendSlaveClearDebug();
     }
@@ -347,6 +347,8 @@ void DoStateMachine(void) {
     SetGUNContactor(CONTACTOR_OPEN);
     DisableTriggers();
     while (ecb_data.control_state == STATE_SAFETY_SELF_TEST) {
+      KEYLOCK_PANEL_SWITCH_EN  = OLL_KEYLOCK_PANEL_SWITCH_POWER_ENABLED;
+
       /*
 	DPARKER - What to test here
 	
@@ -356,7 +358,7 @@ void DoStateMachine(void) {
 	to verify it's state and all of the contact outputs make sense
       */
       // DPARKER need a ClrWdt() here/???
-      //ecb_data.control_state = STATE_WAITING_FOR_POWER_ON;
+      //ecb_data.control_state = STATE_WAITING_FOR_POWER_ON;  //DPARKER Add this back in
       ecb_data.control_state = STATE_XRAY_ON;
     }
     break;
@@ -975,6 +977,9 @@ void UpdateDebugData(void) {
   debug_data_ecb.ram_monitor_c = *global_data_A37780.ram_ptr_c;
   debug_data_ecb.ram_monitor_b = *global_data_A37780.ram_ptr_b;
   debug_data_ecb.ram_monitor_a = *global_data_A37780.ram_ptr_a;
+
+
+  debug_data_ecb.debug_reg[0xF] = *(unsigned int*)&ecb_data.discrete_inputs;
   
   
 }
@@ -986,8 +991,6 @@ void DoA37780(void) {
   static unsigned char spi_device_alternate;
 
 
-  static unsigned int event_log_test_id;
-  
   /* 
      DPARKER,do we need to set these???
      etm_can_master_sync_message.sync_1_ecb_state_for_fault_logic = ecb_data.control_state;
@@ -1003,7 +1006,6 @@ void DoA37780(void) {
 
   if (ETMTickRunOnceEveryNMilliseconds(1000, &one_second_holding_var)) {
 
-    SendToEventLog(event_log_test_id++);
     
     // DPARKER add code detect a PFN FAN FAULT
 
@@ -1156,6 +1158,7 @@ void DoA37780(void) {
 
 
 
+    // ------------- UPDATE THE X_RAY_ON INPUT AND FAULTS RELATED TO IT ---------------------- //
     if (DISCRETE_INPUT_X_RAY_ON == DISCRETE_INPUT_X_RAY_OFF) {
       ETMDigitalUpdateInput(&global_data_A37780.x_ray_on_mismatch_input, 1);
     } else {
@@ -1183,6 +1186,14 @@ void DoA37780(void) {
     }
     ETMCanMasterStatusUpdateFaultBit(_FAULT_X_RAY_ON_WRONG_STATE, ETMDigitalFilteredOutput(&global_data_A37780.x_ray_on_wrong_state_input));
 
+    if (DISCRETE_INPUT_X_RAY_ON == ILL_X_RAY_ON_XRAY_ENABLED) {
+      ETMCanMasterStatusUpdateLoggedBit(_STATUS_X_RAY_ON, 1);
+    } else {
+      ETMCanMasterStatusUpdateLoggedBit(_STATUS_X_RAY_ON, 0);
+    }
+
+
+    
     if (PIN_IN_SPARE_READY_1) {
       ETMDigitalUpdateInput(&global_data_A37780.pfn_fan_fault_input, 1);
     } else {
@@ -1190,6 +1201,38 @@ void DoA37780(void) {
     }
     ETMCanMasterStatusUpdateFaultBit(_FAULT_PFN_FAN_FAULT, ETMDigitalFilteredOutput(&global_data_A37780.pfn_fan_fault_input));
 				     
+
+
+
+
+    // ------------- UPDATE THE OTHER DISCRETE INPUTS ------------------ //
+    if (DISCRETE_INPUT_SYSTEM_ENABLE) {
+      ETMDigitalUpdateInput(&global_data_A37780.system_enable_input, 1);
+    } else {
+      ETMDigitalUpdateInput(&global_data_A37780.system_enable_input, 0);
+    }
+    ETMCanMasterStatusUpdateLoggedBit(_STATUS_SYSTEM_ENABLE, ETMDigitalFilteredOutput(&global_data_A37780.system_enable_input));
+
+    ETMCanMasterStatusUpdateLoggedBit(_STATUS_LOW_MODE_INPUT, DISCRETE_INPUT_MODE_LOW);
+    ETMCanMasterStatusUpdateLoggedBit(_STATUS_HIGH_MODE_INPUT, DISCRETE_INPUT_MODE_HIGH);
+    ETMCanMasterStatusUpdateLoggedBit(_STATUS_HV_ON_CMD, BEAM_ENABLE_INPUT);
+
+    //ETMCanMasterStatusUpdateNotLoggedBit(_STATUS_NOT_LOGGED_LAST_RESET_WAS_POWER_CYCL
+
+    ETMCanMasterStatusUpdateLoggedBit(_STATUS_HV_ON_CMD, BEAM_ENABLE_INPUT);
+    
+    ETMCanMasterStatusUpdateLoggedBit(_STATUS_HV_ON_CMD, BEAM_ENABLE_INPUT);
+
+
+
+    ETMCanMasterStatusUpdateNotLoggedBit(_STATUS_NOT_LOGGED_X_RAY_ON, DISCRETE_INPUT_X_RAY_ON);
+    ETMCanMasterStatusUpdateNotLoggedBit(_STATUS_NOT_LOGGED_X_RAY_ON, DISCRETE_INPUT_X_RAY_OFF);
+
+    
+
+
+
+
     
     /*
     
@@ -1559,7 +1602,7 @@ void InitializeA37780(void) {
       persistent_data_reset_check_b = PERSISTENT_RESET_CHECK_OTHER_RESET_XOR;
     }
   }
-#define BOARDS_TO_IGNORE 0b1111111111111110
+#define BOARDS_TO_IGNORE 0b1111111110111110
   
   ETMCanMasterInitialize(CAN_PORT_1, FCY_CLK, _PIN_RC15, 4, BOARDS_TO_IGNORE);
 
@@ -1622,7 +1665,7 @@ void CalculateHeaterWarmupTimers(void) {
   unsigned long difference;
   
   // Calculate new warm up time remaining
-  if (_STATUS_LAST_RESET_WAS_POWER_CYCLE) {
+  if (_STATUS_NOT_LOGGED_LAST_RESET_WAS_POWER_CYCLE) {
     difference = 60; // DPARKER calculate the off time from the analog reading
   } else {
     difference = 5; // assume 5 seconds at every reset
@@ -2041,6 +2084,7 @@ void LoadDefaultSystemCalibrationToEEProm(void) {
 #define REGISTER_DEBUG_SET_EEPROM_DEBUG 0x1211
 #define REGISTER_ETM_SLAVE_SET_CALIBRATION_PAIR 0x1212
 #define REGISTER_ETM_CLEAR_DEBUG 0x1213
+#define REGISTER_ETM_IGNORE_FAULTS 0x1214
 
 void ExecuteEthernetCommand(void) {
   ETMEthernetMessageFromGUI next_message;
@@ -2056,6 +2100,9 @@ void ExecuteEthernetCommand(void) {
   
   // This message needs to be processsed by the ethernet control board
 
+
+  SendToEventLog(next_message.index);
+  
   switch (next_message.index) {
     
   case REGISTER_CMD_ECB_RESET_FAULTS:
@@ -2175,7 +2222,10 @@ void ExecuteEthernetCommand(void) {
       ETMCanMasterSendSlaveClearDebug();
       break;
       
-
+    case REGISTER_ETM_IGNORE_FAULTS:
+      ETMCanMasterSendSlaveIgnoreMessage(next_message.data_3, next_message.data_2, next_message.data_1, next_message.data_0);
+      break;
+      
     case REGISTER_ETM_SAVE_CURRENT_SETTINGS_TO_FACTORY_DEFAULT:
       global_data_A37780.eeprom_write_status = EEPROM_WRITE_FAILURE;
       while (global_data_A37780.eeprom_write_status == EEPROM_WRITE_FAILURE) {
@@ -3331,7 +3381,7 @@ void MCP23S18Setup(unsigned long pin_chip_select_not,
 }
 
 
-#define DISCRETE_INPUT_XOR_MASK 0b1100000001101000
+#define DISCRETE_INPUT_XOR_MASK 0b1100000001101000 // This flips the values to make sense based on the name
 #define OP_CODE_ADDRESS_PORT_DATA_READ  0b0100000100010010
 
 unsigned int MCP23S18UpdateInputs(void) {
@@ -3364,3 +3414,7 @@ unsigned int MCP23S18UpdateInputs(void) {
   
   return 0xFFFF;
 }
+
+
+
+

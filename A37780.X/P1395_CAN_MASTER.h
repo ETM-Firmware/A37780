@@ -48,7 +48,9 @@ void ETMCanMasterSendSlaveRAMDebugLocations(unsigned int board_id, unsigned int 
 void ETMCanMasterSendSlaveEEPROMDebug(unsigned int board_id, unsigned int eeprom_register);
 void ETMCanMasterSendDiscreteCMD(unsigned int discrete_cmd_id);
 void ETMCanMasterSendSlaveClearDebug(void);
+void ETMCanMasterSendSlaveIgnoreMessage(unsigned int board_id, unsigned int unused_a, unsigned int unused_b, unsigned int ignore_bits);
 void ETMCanMasterClearHighSpeedLogging(void);
+
 
 
 

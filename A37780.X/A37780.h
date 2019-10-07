@@ -299,6 +299,11 @@ typedef struct {
 #define PIN_TRIGGER_IN                         PIN_IN_TRIGGER_1
 #define ILL_TRIGGER_ACTIVE                     1
 
+#define DISCRETE_INPUT_MODE_LOW                PIN_IN_PIC_INPUT_6
+#define DISCRETE_INPUT_MODE_HIGH               PIN_IN_PIC_INPUT_7
+#define ILL_MODE_ACTIVE                        0
+
+
 
 
 #define PIN_GRID_TRIGGER                       _LATD0
@@ -410,6 +415,9 @@ typedef struct {
   TYPE_DIGITAL_INPUT x_ray_on_wrong_state_input;
 
 
+  TYPE_DIGITAL_INPUT system_enable_input;
+  
+
   unsigned int *ram_ptr_a;
   unsigned int *ram_ptr_b;
   unsigned int *ram_ptr_c;
@@ -468,8 +476,21 @@ extern A37780GlobalVars global_data_A37780;
 // DPAKRER  - Need to evaluate how these are used under new control system
 #define _STATUS_PERSONALITY_LOADED                      _LOGGED_STATUS_0
 #define _STATUS_DRIVE_UP_TIMEOUT                        _LOGGED_STATUS_1
+#define _STATUS_WAVEGUIDE_ARC_1                         _LOGGED_STATUS_2
+#define _STATUS_WAVEGUIDE_ARC_2                         _LOGGED_STATUS_3
 
-#define _STATUS_LAST_RESET_WAS_POWER_CYCLE              _NOT_LOGGED_STATUS_0
+
+#define _STATUS_SYSTEM_ENABLE                           _LOGGED_STATUS_4
+#define _STATUS_LOW_MODE_INPUT                          _LOGGED_STATUS_5
+#define _STATUS_HIGH_MODE_INPUT                         _LOGGED_STATUS_6
+#define _STATUS_HV_ON_CMD                               _LOGGED_STATUS_7
+#define _STATUS_X_RAY_ON                                _LOGGED_STATUS_8
+
+
+
+#define _STATUS_NOT_LOGGED_LAST_RESET_WAS_POWER_CYCLE   _NOT_LOGGED_STATUS_0
+#define _STATUS_NOT_LOGGED_X_RAY_ON                     _NOT_LOGGED_STATUS_1
+#define _STATUS_NOT_LOGGED_X_RAY_OFF                    _NOT_LOGGED_STATUS_2
 
 
 
