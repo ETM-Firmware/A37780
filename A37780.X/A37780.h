@@ -416,7 +416,10 @@ typedef struct {
 
 
   TYPE_DIGITAL_INPUT system_enable_input;
-  
+
+  TYPE_DIGITAL_INPUT estop_mismatch_input;
+
+  unsigned int safety_self_test;
 
   unsigned int *ram_ptr_a;
   unsigned int *ram_ptr_b;
@@ -485,7 +488,6 @@ extern A37780GlobalVars global_data_A37780;
 #define _STATUS_HIGH_MODE_INPUT                         _LOGGED_STATUS_6
 #define _STATUS_HV_ON_CMD                               _LOGGED_STATUS_7
 #define _STATUS_X_RAY_ON                                _LOGGED_STATUS_8
-
 
 
 #define _STATUS_NOT_LOGGED_LAST_RESET_WAS_POWER_CYCLE   _NOT_LOGGED_STATUS_0

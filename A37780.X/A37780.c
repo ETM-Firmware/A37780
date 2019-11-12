@@ -319,12 +319,12 @@ void DoStateMachine(void) {
     DisableTriggers();
     InitializeA37780();
     global_data_A37780.gun_heater_holdoff_timer = 0;
-    ecb_data.control_state = STATE_SAFETY_SELF_TEST;
     SendToEventLog(LOG_ID_ENTERED_STATE_STARTUP);
     if (_STATUS_NOT_LOGGED_LAST_RESET_WAS_POWER_CYCLE) {
       ETMCanMasterClearECBDebug();
       ETMCanMasterSendSlaveClearDebug();
     }
+    ecb_data.control_state = STATE_SAFETY_SELF_TEST;
     break;
 
 
@@ -346,20 +346,52 @@ void DoStateMachine(void) {
     SetHVContactor(CONTACTOR_OPEN);
     SetGUNContactor(CONTACTOR_OPEN);
     DisableTriggers();
+    global_data_A37780.safety_self_test = 0;
+    DoSafetyRelaySelfTest();
+    if (global_data_A37780.safety_self_test != 0) {
+      // There was a relay/contactor failure
+      ecb_data.control_state = STATE_SAFETY_SYSTEM_FAILURE;
+    }
+    
     while (ecb_data.control_state == STATE_SAFETY_SELF_TEST) {
-      KEYLOCK_PANEL_SWITCH_EN  = OLL_KEYLOCK_PANEL_SWITCH_POWER_ENABLED;
+      DoA37780();
+      MCP23S18UpdateInputs();
+      ClrWdt();
+      // Wait for an E-STOP reset to be pressed
+      
+      if ((ecb_data.discrete_inputs.a5_estop_2_open == 0) && (ecb_data.discrete_inputs.a4_estop_1_open == 0)) {
+	// both of the E-Stop relays are closed.
+	// someone must have pressed the estop reset
+	ecb_data.control_state = STATE_WAITING_FOR_POWER_ON;
+      }
 
-      /*
-	DPARKER - What to test here
-	
-	Certainly want to look at the Keylock and the Panel Switch
-	Do we test the E-STOP here or somewhere else?
-	I think the E-STOP needs to be tested every time an AC Contactor turns on
-	to verify it's state and all of the contact outputs make sense
-      */
-      // DPARKER need a ClrWdt() here/???
-      //ecb_data.control_state = STATE_WAITING_FOR_POWER_ON;  //DPARKER Add this back in
-      ecb_data.control_state = STATE_XRAY_ON;
+      if (ecb_data.discrete_inputs.a5_estop_2_open !=  ecb_data.discrete_inputs.a4_estop_1_open) {
+	// at least one of the E-Stop relays is closed
+	// if this stays true for too long then we have a fault
+	ETMDigitalUpdateInput(&global_data_A37780.estop_mismatch_input, 1);
+      } else {
+	ETMDigitalUpdateInput(&global_data_A37780.estop_mismatch_input, 0);
+      }
+      if (ETMDigitalFilteredOutput(&global_data_A37780.estop_mismatch_input)) {
+	global_data_A37780.safety_self_test |= 0x0080;
+      }
+
+      if (ecb_data.discrete_inputs.b1_pwr_b_flt == 0) {
+	global_data_A37780.safety_self_test |= 0x0100;
+      }
+
+      if (ecb_data.discrete_inputs.b2_pwr_a_flt == 0) {
+	global_data_A37780.safety_self_test |= 0x0200;
+      }
+
+      if (ecb_data.discrete_inputs.a0_phase_monitor_flt == 0) {
+	global_data_A37780.safety_self_test |= 0x0400;
+      }
+      
+      if (global_data_A37780.safety_self_test) {
+	ecb_data.control_state = STATE_SAFETY_SYSTEM_FAILURE;
+      }
+      
     }
     break;
     
@@ -385,6 +417,23 @@ void DoStateMachine(void) {
       DoA37780();
       FlashLeds();
       ClrWdt();
+
+      if (ecb_data.discrete_inputs.b1_pwr_b_flt == 0) {
+	global_data_A37780.safety_self_test |= 0x0100;
+      }
+
+      if (ecb_data.discrete_inputs.b2_pwr_a_flt == 0) {
+	global_data_A37780.safety_self_test |= 0x0200;
+      }
+
+      if (ecb_data.discrete_inputs.a0_phase_monitor_flt == 0) {
+	global_data_A37780.safety_self_test |= 0x0400;
+      }
+      
+      if (global_data_A37780.safety_self_test) {
+	ecb_data.control_state = STATE_SAFETY_SYSTEM_FAILURE;
+      }
+      
       if (DISCRETE_INPUT_SYSTEM_ENABLE == ILL_SYSTEM_ENABLE) {
 	ecb_data.control_state = STATE_WAITING_FOR_INITIALIZATION;
       }
@@ -410,28 +459,19 @@ void DoStateMachine(void) {
     SetGUNContactor(CONTACTOR_CLOSED);
     DisableTriggers();
     global_data_A37780.startup_counter = 0;
-    // DPARKER ADD THE FRONT PANEL LIGHT CONTROLS
     while (ecb_data.control_state == STATE_WAITING_FOR_INITIALIZATION) {
       DoA37780();
       FlashLeds();
 
-      /* 
-	 DPARKER
-	 Add self test fucntionality
-	 Certainly need to test all the fibers.
-	 What else can be tested with High Voltage off????
-      */
-      
       if ((ETMCanMasterCheckAllBoardsConfigured() == 0xFFFF) && (global_data_A37780.startup_counter >= 300)) {
       	ecb_data.control_state = STATE_WARMUP;
 	SendToEventLog(LOG_ID_ALL_MODULES_CONFIGURED);
       }
+
     }
     break;
 
-
     
-
   case STATE_WARMUP:
     // Note that the warmup timers start counting in "Waiting for Initialization"
     SendToEventLog(LOG_ID_ENTERED_STATE_WARMUP);
@@ -449,6 +489,10 @@ void DoStateMachine(void) {
     SetACContactor(CONTACTOR_CLOSED);
     SetHVContactor(CONTACTOR_OPEN);
     SetGUNContactor(CONTACTOR_CLOSED);
+    // SEND MESSAGE TO SLAVES TO INITIATE TRIGGER TEST
+    // WAIT A WHILE
+    // SEND THE TEST TRIGGERS
+    // Wait A WHILE
     DisableTriggers();
     while (ecb_data.control_state == STATE_WARMUP) {
       DoA37780();
@@ -1408,6 +1452,65 @@ unsigned int CalculatePulseEnergyMilliJoules(unsigned int lambda_voltage) {
 }
 
 
+void DoSafetyRelaySelfTest(void) {
+  /*
+	* Need to confirm that the safety relays are working
+	* Confirm that 24V external out is "off"
+	* Check that ESTOP-1 and ESTOP-2 Status are in the "off" state
+	* Check that the AC Contactor, HVPS Contactor, Gun Contactor are in the open state
+	* Enable the external 24v supply
+	* Confirm that it turns on
+  */
+
+  __delay32(DELAY_100_MS);
+  ClrWdt();
+  MCP23S18UpdateInputs();
+
+  global_data_A37780.safety_self_test = 0;
+  if (ecb_data.discrete_inputs.a1_24v_monitor_flt == 0) {
+    // the ext 24V supply is on (it should not be)
+    global_data_A37780.safety_self_test |= 0x0001;
+  }
+
+  if (ecb_data.discrete_inputs.a4_estop_1_open == 0) {
+    // estop one is closed (it should not be)
+    global_data_A37780.safety_self_test |= 0x0002;
+  }
+
+  if (ecb_data.discrete_inputs.a5_estop_2_open == 0) {
+    // estop two is closed (it should not be)
+    global_data_A37780.safety_self_test |= 0x0004;
+  }
+
+  if (ecb_data.discrete_inputs.a2_ac_contactor_open == 0) {
+    // AC contactor is closed (it should not be)
+    global_data_A37780.safety_self_test |= 0x0008;
+  }
+
+  if (ecb_data.discrete_inputs.a3_hv_contactor_open == 0) {
+    // HV contactor is closed (it should not be)
+    global_data_A37780.safety_self_test |= 0x0010;
+  }
+
+  if (ecb_data.discrete_inputs.b4_gun_contactor_open == 0) {
+    // AC Contactor is closed (it should not be)
+    global_data_A37780.safety_self_test |= 0x0020;
+  }
+
+  KEYLOCK_PANEL_SWITCH_EN = OLL_KEYLOCK_PANEL_SWITCH_POWER_ENABLED;
+  
+  __delay32(DELAY_100_MS);
+  ClrWdt();
+  MCP23S18UpdateInputs();
+
+  if (ecb_data.discrete_inputs.a1_24v_monitor_flt) {
+    // the ext 24V supply is off
+    global_data_A37780.safety_self_test |= 0x0040;
+  }
+  
+}
+
+
 
 void UpdateHeaterScale() {
   // DPAKER UPDATE THIS FUNCTION
@@ -1655,6 +1758,8 @@ void InitializeA37780(void) {
   ETMDigitalInitializeInput(&global_data_A37780.x_ray_on_without_beam_enable_input, 0, X_RAY_ON_BEAM_DISABLED_MAX_TIME); 
   ETMDigitalInitializeInput(&global_data_A37780.x_ray_on_wrong_state_input, 0, X_RAY_ON_WRONG_STATE_MAX_TIME);
   ETMDigitalInitializeInput(&global_data_A37780.pfn_fan_fault_input, 0, PFN_FAN_FAULT_MAX_TIME);
+
+  ETMDigitalInitializeInput(&global_data_A37780.estop_mismatch_input, 0, 1000);
 
   
   ETMLinacModbusInitialize();

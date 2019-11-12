@@ -275,6 +275,7 @@ typedef struct {
   unsigned a7_keylock_open:1;
 } TYPE_IO_EXPANDER;
 
+#define b4_gun_contactor_open b4_spare_input_ok
 
 typedef struct {
   ETMCanStatusRegister status;
