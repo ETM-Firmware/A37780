@@ -110,8 +110,10 @@ static volatile unsigned int *CXTX2CON_ptr;
 
 
 
-void ETMCanMasterInitialize(unsigned int requested_can_port, unsigned long fcy, unsigned long can_operation_led, unsigned int can_interrupt_priority, unsigned int boards_to_ignore) {
+void ETMCanMasterInitialize(unsigned int requested_can_port, unsigned long fcy, unsigned long can_operation_led, unsigned int can_interrupt_priority, unsigned int boards_to_ignore, unsigned int system_conf_setting) {
 
+  ecb_data.system_configuration_select = system_conf_setting;
+  
   etm_can_master_boards_to_ignore = boards_to_ignore;
   
   if (can_interrupt_priority > 7) {
@@ -345,7 +347,7 @@ static void LocalTimedTransmit(void) {
   // Once every 100ms, send out message to update board settings
   if (ETMTickRunOnceEveryNMilliseconds(ETM_CAN_MASTER_TIMED_TRANSMISSION_PERIOD_MILLI_SECONDS, &etm_can_master_timed_transmission_period_holding_var)) {
     transmit_message_select_counter++;
-    if (transmit_message_select_counter >= 8) {
+    if (transmit_message_select_counter >= 10) {
       transmit_message_select_counter = 0;
     }
 
@@ -401,14 +403,30 @@ static void LocalTimedTransmit(void) {
 
       case 0x6:
 	LocalTransmitToSlave(ETM_CAN_CMD_ID_ALL_DOSE_SET_POINTS_REGISTER_B,
-			     0,
-			     0,
-			     0,
+			     ecb_data.spare_ecb_data_to_slaves,
+			     ecb_data.dose_level_all.afc_locked_mode,
+			     ecb_data.system_configuration_select,
 			     ecb_data.dose_level_all.afc_manual_target_position);
 	break;
 
-
       case 0x7:
+	LocalTransmitToSlave(ETM_CAN_CMD_ID_AUX_SET_POINT_A,
+			     ecb_data.aux_set_points.aux_set_point_7,
+			     ecb_data.aux_set_points.aux_set_point_6,
+			     ecb_data.aux_set_points.aux_set_point_5,
+			     ecb_data.aux_set_points.aux_set_point_4);
+	break;
+
+      case 0x8:
+	LocalTransmitToSlave(ETM_CAN_CMD_ID_AUX_SET_POINT_B,
+			     ecb_data.aux_set_points.aux_set_point_3,
+			     ecb_data.aux_set_points.aux_set_point_2,
+			     ecb_data.aux_set_points.aux_set_point_1,
+			     ecb_data.aux_set_points.aux_set_point_0);
+	break;
+
+	
+      case 0x9:
 	LocalTransmitToSlave(ETM_CAN_CMD_ID_SCOPE_SETTINGS,
 			     scope_a_settings,
 			     scope_b_settings,
@@ -454,8 +472,8 @@ void ETMCanMasterSendDiscreteCMD(unsigned int discrete_cmd_id) {
   LocalTransmitToSlave(ETM_CAN_CMD_ID_DISCRETE_CMD, discrete_cmd_id, 0, 0, 0);
 }
 
-void ETMCanMasterSendSlaveClearDebug(void) {
-  LocalTransmitToSlave(ETM_CAN_CMD_ID_CLEAR_DEBUG, 0, 0, 0, 0);
+void ETMCanMasterSendSlaveClearPersistent(void) {
+  LocalTransmitToSlave(ETM_CAN_CMD_ID_CLEAR_PERSISTENT_DATA, 0, 0, 0, 0);
 }
 
 void ETMCanMasterSendSlaveIgnoreMessage(unsigned int board_id, unsigned int unused_a, unsigned int unused_b, unsigned int ignore_bits) {

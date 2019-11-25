@@ -3,8 +3,8 @@
 
 
 
-//#define __SYSTEM_CONFIGURATION_2_5_MEV
-#define __SYSTEM_CONFIGURATION_6_MEV_MEDICAL
+#define __SYSTEM_CONFIGURATION_2_5_MEV
+//#define __SYSTEM_CONFIGURATION_6_MEV_MEDICAL
 
 
 #ifdef __SYSTEM_CONFIGURATION_2_5_MEV
@@ -16,9 +16,9 @@
 #define MAX_DRIVE_UP_FAULTS                  5    // Attempts to bring up high voltage before latching fault
 #define MAX_HV_ON_FAULTS                     10   // Attempts to reset faults with HV on (but Xray Off) before latching 
 
-#define MAGNETRON_HEATER_WARM_UP_TIME        300   // 5 minutes
-#define THYRATRON_WARM_UP_TIME               900   // 15 minutes
-#define GUN_DRIVER_HEATER_WARM_UP_TIME       300   // 5 minutes
+#define MAGNETRON_HEATER_WARM_UP_TIME        300 //20 //300   // 5 minutes
+#define THYRATRON_WARM_UP_TIME               900 //40 //900   // 15 minutes
+#define GUN_DRIVER_HEATER_WARM_UP_TIME       300 //20 //300   // 5 minutes
 
 #define GUN_HEATER_HOLDOFF_AT_STARTUP        500   // 5 seconds
 #define GUN_HEATER_ADDITONAL_HOLDOFF_COLD   2500   // 25 seconds

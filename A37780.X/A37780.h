@@ -88,7 +88,7 @@ typedef struct {
   Timer3 - Reserved for IC Module (IF NEEDED)
 
   Timer4 - Setting aside for PRF Limit
-  Timer5 - Unused at this time (Previously reserved for Can Module)
+  Timer5 - Reserved by Self Triggering
 
 
   UART1 - Reserved for Future Usage
@@ -259,6 +259,7 @@ typedef struct {
 #define PIN_IN_PIC_FAN_SENSOR                  _RD10
 #define PIN_IN_SPARE_READY_1                   _RD9
 #define PIN_IN_TRIGGER_1                       _RA12
+#define PIN_IN_TRIGGER_2                       _RA13
 
 
 
@@ -281,12 +282,13 @@ typedef struct {
 #define DISCRETE_OUTPUT_READY                  PIN_OUT_PIC_DIGITAL_OUT_2
 #define DISCRETE_OUTPUT_X_RAY_ON               PIN_OUT_PIC_DIGITAL_OUT_6
 #define DISCRETE_OUTPUT_SPARE                  0
-
-
+#define DISCRETE_OUTPUT_E_STOP                 PIN_OUT_PIC_DIGITAL_OUT_8
+#define DISCRETE_OUTPUT_BEAM_EN                PIN_OUT_PIC_DIGITAL_OUT_1
+#define DISCRETE_OUTPUT_KEYLOCK                PIN_OUT_PIC_DIGITAL_OUT_4
 
 #define DISCRETE_INPUT_X_RAY_ON                PIN_IN_PIC_INPUT_3
 #define DISCRETE_INPUT_X_RAY_OFF               PIN_IN_PIC_INPUT_4
-#define ILL_X_RAY_ON_XRAY_ENABLED              1
+#define ILL_X_RAY_ON_XRAY_ENABLED              0
 
 
 #define DISCRETE_INPUT_SYSTEM_ENABLE           PIN_IN_PIC_INPUT_1
@@ -303,7 +305,8 @@ typedef struct {
 #define DISCRETE_INPUT_MODE_HIGH               PIN_IN_PIC_INPUT_7
 #define ILL_MODE_ACTIVE                        0
 
-
+#define DISCRETE_INPUT_PFN_FAN_FAULT           PIN_IN_SPARE_READY_1
+#define ILL_PFN_FAN_FAULT                      0
 
 
 #define PIN_GRID_TRIGGER                       _LATD0
@@ -347,6 +350,8 @@ typedef struct {
 #define T2CON_VALUE_TIMER_ON_SCALE_1_1  (T2_ON & T2_IDLE_CON & T2_GATE_OFF & T2_PS_1_1 & T2_32BIT_MODE_OFF & T2_SOURCE_INT)
 #define T2CON_VALUE_TIMER_OFF_SCALE_1_1 (T2_OFF & T2_IDLE_CON & T2_GATE_OFF & T2_PS_1_1 & T2_32BIT_MODE_OFF & T2_SOURCE_INT)
 
+#define T2CON_VALUE_TIMER_ON_SCALE_1_8  (T2_ON & T2_IDLE_CON & T2_GATE_OFF & T2_PS_1_8 & T2_32BIT_MODE_OFF & T2_SOURCE_INT)
+
 
 // ------------------------ CONFIGURE ADC MODULE ------------------- //
 #define ADCON1_SETTING          (ADC_MODULE_OFF & ADC_IDLE_STOP & ADC_FORMAT_INTG & ADC_CLK_AUTO & ADC_AUTO_SAMPLING_ON)
@@ -375,10 +380,11 @@ typedef struct {
   unsigned int gun_warmup_remaining;
   unsigned int gun_heater_holdoff_timer;
   unsigned int drive_up_timer;
+  unsigned int minimum_drive_up_timer;
+  unsigned int wait_for_power_on_timer;
+
   
   unsigned int startup_counter;
-
-  unsigned long time_seconds_now;
 
   unsigned int reset_requested;  //DPARKER evaulate this
   unsigned int reset_hold_timer;
@@ -416,14 +422,21 @@ typedef struct {
 
 
   TYPE_DIGITAL_INPUT system_enable_input;
-
   TYPE_DIGITAL_INPUT estop_mismatch_input;
 
-  unsigned int safety_self_test;
-
+  
   unsigned int *ram_ptr_a;
   unsigned int *ram_ptr_b;
   unsigned int *ram_ptr_c;
+
+  unsigned char customer_x_ray_on;
+  unsigned char low_mode_active;
+  unsigned char high_mode_active;
+  unsigned char beam_enable_active;
+  unsigned char system_enable_on;
+
+  unsigned int previous_arc_reading;
+  unsigned int current_arc_reading;
   
 } A37780GlobalVars;
 
@@ -490,7 +503,7 @@ extern A37780GlobalVars global_data_A37780;
 #define _STATUS_X_RAY_ON                                _LOGGED_STATUS_8
 
 
-#define _STATUS_NOT_LOGGED_LAST_RESET_WAS_POWER_CYCLE   _NOT_LOGGED_STATUS_0
+//#define _STATUS_NOT_LOGGED_LAST_RESET_WAS_POWER_CYCLE   _NOT_LOGGED_STATUS_0
 #define _STATUS_NOT_LOGGED_X_RAY_ON                     _NOT_LOGGED_STATUS_1
 #define _STATUS_NOT_LOGGED_X_RAY_OFF                    _NOT_LOGGED_STATUS_2
 
@@ -548,6 +561,7 @@ extern A37780GlobalVars global_data_A37780;
 #define STATE_FAULT_RESET                            0xA6
 #define STATE_SAFE_POWER_DOWN                        0xA8
 
+#define STATE_SAFETY_SYSTEM_FAILURE                  0xB1
 
 
 #define EEPROM_REGISTER_HTR_MAG_HEATER_CURRENT                      0x0000
@@ -633,14 +647,25 @@ extern A37780GlobalVars global_data_A37780;
 
 
 
+#define SAFETY_SELF_TEST_24V_SUPPLY_OFF_FLT         0x0001
+#define SAFETY_SELF_TEST_ESTOP_1_CLOSED             0x0002
+#define SAFETY_SELF_TEST_ESTOP_2_CLOSED             0x0004
+#define SAFETY_SELF_TEST_AC_CONTACT_CLOSED          0x0008
 
+#define SAFETY_SELF_TEST_HV_CONTACT_CLOSED          0x0010
+#define SAFETY_SELF_TEST_GUN_CONTACT_CLOSED         0x0020
+#define SAFETY_SELF_TEST_24V_SUPPLY_ON_FLT          0x0040
+#define SAFETY_SELF_TEST_ESTOP_1_OPEN               0x0080
 
+#define SAFETY_SELF_TEST_ESTOP_2_OPEN               0x0100
+#define SAFETY_SELF_TEST_AC_CONTACT_OPEN            0x0200
+#define SAFETY_SELF_TEST_HV_CONTACT_OPEN            0x0400
+#define SAFETY_SELF_TEST_GUN_CONTACT_OPEN           0x0800
 
-
-
-
-
-
+#define SAFETY_SELF_TEST_ESTOP_MISMATCH             0x1000
+#define SAFETY_SELF_TEST_PHASE_MONITOR_OK           0x2000
+#define SAFETY_SELF_TEST_KEYLOCK_SW                 0x4000
+#define SAFETY_SELF_TEST_PANEL_SW                   0x8000
 
 
 

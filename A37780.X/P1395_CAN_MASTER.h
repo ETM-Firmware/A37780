@@ -10,7 +10,16 @@
 
 
 // Public Functions
-void ETMCanMasterInitialize(unsigned int requested_can_port, unsigned long fcy, unsigned long can_operation_led, unsigned int can_interrupt_priority, unsigned int boards_to_ignore);
+void ETMCanMasterInitialize(unsigned int requested_can_port, unsigned long fcy,
+			    unsigned long can_operation_led, unsigned int can_interrupt_priority,
+			    unsigned int boards_to_ignore, unsigned int system_conf_setting);
+
+#define SYSTEM_CONFIGURATION_A37500_000  0  // 6 MeV Medical Linac
+#define SYSTEM_CONFIGURATION_A36375_240  1  // 2.5 MeV 240 Vac
+#define SYSTEM_CONFIGURATION_A36375_400  2  // 2.5 MeV 400 Vac
+#define SYSTEM_CONFIGURATION_A37854_000  3  // 6/4 MeV 
+
+
 /*
   This is called once when the processor starts up to initialize the can bus and all of the can variables
 */
@@ -47,7 +56,7 @@ void ETMCanMasterSendSlaveCalibrationPair(unsigned int board_id, unsigned int ca
 void ETMCanMasterSendSlaveRAMDebugLocations(unsigned int board_id, unsigned int address_A, unsigned int address_B, unsigned int address_C);
 void ETMCanMasterSendSlaveEEPROMDebug(unsigned int board_id, unsigned int eeprom_register);
 void ETMCanMasterSendDiscreteCMD(unsigned int discrete_cmd_id);
-void ETMCanMasterSendSlaveClearDebug(void);
+void ETMCanMasterSendSlaveClearPersistent(void);
 void ETMCanMasterSendSlaveIgnoreMessage(unsigned int board_id, unsigned int unused_a, unsigned int unused_b, unsigned int ignore_bits);
 void ETMCanMasterClearHighSpeedLogging(void);
 
@@ -149,11 +158,13 @@ unsigned int ETMCanMasterReturnSlaveStatusBit(unsigned int bit_select, unsigned 
   Will return 0xFFFF if the selected bit is set, 0x0000 otherwise
 */
 
-#define HEATER_MAGNET_HEATER_OK_BIT            0x0000 // DPARKER Get the correct bits
-#define ION_PUMP_OVER_CURRENT_ACTIVE_BIT       0x0000
-#define COOLING_INTERFACE_FLOW_OK_BIT          0x0000
-#define MAGNETRON_CURRENT_FALSE_TRIGGER        0x0000  
-#define GUN_DRIVER_HEATER_RAMP_COMPLETE        0x0000
+// bits are (highest nibble - unused) (next nibble - board_id) (next nibble - register select) (next nibble - bit id)
+
+#define HEATER_MAGNET_HEATER_OK_BIT            0x0400 // DPARKER Get the correct bits
+#define ION_PUMP_OVER_CURRENT_ACTIVE_BIT       0x0100
+#define COOLING_INTERFACE_FLOW_OK_BIT          0x0300
+#define MAGNETRON_CURRENT_FALSE_TRIGGER        0x0611  
+#define GUN_DRIVER_HEATER_RAMP_COMPLETE        0x0500
 
 
 
@@ -191,12 +202,33 @@ typedef struct {
   unsigned int gun_driver_bias_voltage;           // transmitted to Gun Driver Interfacce
   unsigned int afc_aux_control_or_offset;         // transmitted to AFC Inerterface
   unsigned int afc_manual_target_position;        // transmitted to AFC Inerterface
-  unsigned int unused_3;
-  unsigned int unused_2;
-  unsigned int unused_1;
-  unsigned int unused_0;
+  unsigned int afc_locked_mode;                   // used by AFC to lock position to home
+  unsigned int unused_2;                          // DO NOT USED - NOT MAPPED TO ANYTHING
+  unsigned int unused_1;                          // DO NOT USED - NOT MAPPED TO ANYTHING
+  unsigned int unused_0;                          // DO NOT USED - NOT MAPPED TO ANYTHING
   unsigned int crc_do_not_write;
 } TYPE_ALL_DOSE_LEVELS;
+
+
+typedef struct {
+  unsigned int aux_set_point_0;                   // FUTURE USE
+  unsigned int aux_set_point_1;                   // FUTURE USE
+  unsigned int aux_set_point_2;                   // FUTURE USE
+  unsigned int aux_set_point_3;                   // FUTURE USE
+  unsigned int aux_set_point_4;                   // FUTURE USE
+  unsigned int aux_set_point_5;                   // FUTURE USE
+  unsigned int aux_set_point_6;                   // FUTURE USE
+  unsigned int aux_set_point_7;                   // FUTURE USE
+
+  unsigned int unused_6;                          // DO NOT USED - NOT MAPPED TO ANYTHING
+  unsigned int unused_5;                          // DO NOT USED - NOT MAPPED TO ANYTHING
+  unsigned int unused_4;                          // DO NOT USED - NOT MAPPED TO ANYTHING
+  unsigned int unused_3;                          // DO NOT USED - NOT MAPPED TO ANYTHING
+  unsigned int unused_2;                          // DO NOT USED - NOT MAPPED TO ANYTHING
+  unsigned int unused_1;                          // DO NOT USED - NOT MAPPED TO ANYTHING
+  unsigned int unused_0;                          // DO NOT USED - NOT MAPPED TO ANYTHING
+  unsigned int crc_do_not_write;
+} TYPE_AUX_SET_POINTS;
 
 
 typedef struct {
@@ -288,8 +320,14 @@ typedef struct {
   TYPE_DOSE_COMP       dose_compensation_group_a;
   TYPE_DOSE_COMP       dose_compensation_group_b;
   TYPE_ECB_INFO        config;
-  TYPE_IO_EXPANDER     discrete_inputs;
+  TYPE_AUX_SET_POINTS  aux_set_points;
+  TYPE_IO_EXPANDER     io_expander_inputs;
   unsigned int         control_state;
+  unsigned int         system_configuration_select;
+  unsigned int         spare_ecb_data_to_slaves;
+  unsigned int         safety_self_test;
+  unsigned int         cpu_inputs;
+  unsigned int         cpu_outputs;
 } TYPE_ECB_DATA;
 
 #define NUMBER_OF_DATA_MIRRORS 10  //10 Slave Can Channels

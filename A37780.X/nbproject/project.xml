@@ -15,6 +15,7 @@
             <sourceRootList>
                 <sourceRootElem>.</sourceRootElem>
                 <sourceRootElem>../../ETM_LIBRARY/Source/ETM_CORE.X</sourceRootElem>
+                <sourceRootElem>../../CanRev3Dev</sourceRootElem>
             </sourceRootList>
             <confList>
                 <confElem>

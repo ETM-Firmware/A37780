@@ -15,9 +15,9 @@
                    displayName="Source Files"
                    projectFiles="true">
       <itemPath>A37780.c</itemPath>
-      <itemPath>P1395_CAN_MASTER.c</itemPath>
-      <itemPath>P1395_CAN_CORE.s</itemPath>
       <itemPath>ETM_LINAC_MODBUS.c</itemPath>
+      <itemPath>../../CanRev3Dev/P1395_CAN_CORE.s</itemPath>
+      <itemPath>P1395_CAN_MASTER.c</itemPath>
     </logicalFolder>
     <logicalFolder name="ExternalFiles"
                    displayName="Important Files"
@@ -28,6 +28,7 @@
   <sourceRootList>
     <Elem>.</Elem>
     <Elem>../../ETM_LIBRARY/Source/ETM_CORE.X</Elem>
+    <Elem>../../CanRev3Dev</Elem>
   </sourceRootList>
   <projectmakefile>Makefile</projectmakefile>
   <confs>
@@ -181,7 +182,7 @@
       </C30-LD>
       <C30Global>
         <property key="common-include-directories"
-                  value="..\..\ETM_LIBRARY\Version_05\inc;..\..\ETM_LIBRARY\Version_05\inc\ETM_TCPModbus"/>
+                  value="..\..\ETM_LIBRARY\Version_05\inc;..\..\ETM_LIBRARY\Version_05\inc\ETM_TCPModbus;..\..\CanRev3Dev"/>
         <property key="dual-boot-partition" value="0"/>
         <property key="fast-math" value="false"/>
         <property key="generic-16-bit" value="false"/>
